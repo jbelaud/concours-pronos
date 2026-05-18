@@ -55,8 +55,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     async signIn({ user, account }) {
-      // For Google OAuth: only allow emails that were invited
+      // For Google OAuth: only allow emails that were invited (admin bypasses check)
       if (account?.provider === "google" && user.email) {
+        if (user.email === process.env.ADMIN_EMAIL) {
+          await db.user.update({
+            where: { email: user.email },
+            data: { role: "ADMIN" },
+          }).catch(() => {})
+          return true
+        }
         const invite = await db.invite.findUnique({
           where: { email: user.email },
         })
