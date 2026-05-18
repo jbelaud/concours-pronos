@@ -290,6 +290,56 @@ export async function sendInvite(data: InviteFormData) {
   return { success: true }
 }
 
+// ---------------------------------------------------------------------------
+// Participants
+// ---------------------------------------------------------------------------
+
+export async function toggleParticipantPaid(participantId: string, hasPaid: boolean) {
+  await requireAdmin()
+  await db.contestParticipant.update({
+    where: { id: participantId },
+    data: { hasPaid },
+  })
+  revalidatePath("/admin/participants")
+  return { success: true }
+}
+
+export async function createManualUser(data: {
+  firstName: string
+  lastName: string
+  email: string
+  contestId?: string
+}) {
+  await requireAdmin()
+
+  const existing = await db.user.findUnique({ where: { email: data.email } })
+  if (existing) return { error: "Un utilisateur avec cet email existe déjà." }
+
+  const user = await db.user.create({
+    data: {
+      email: data.email,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      name: `${data.firstName} ${data.lastName}`,
+      avatarSeed: data.email,
+      role: "USER",
+    },
+  })
+
+  if (data.contestId) {
+    await db.contestParticipant.create({
+      data: { contestId: data.contestId, userId: user.id },
+    }).catch(() => {})
+    await db.leaderboardEntry.create({
+      data: { contestId: data.contestId, userId: user.id },
+    }).catch(() => {})
+    revalidatePath("/admin/participants")
+  }
+
+  revalidatePath("/admin/invitations")
+  return { success: true, userId: user.id }
+}
+
 export async function addScorerCandidate(data: {
   contestId: string
   name: string

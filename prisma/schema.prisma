@@ -161,6 +161,7 @@ model ContestParticipant {
   contestId String
   userId    String
   joinedAt  DateTime @default(now())
+  hasPaid   Boolean  @default(false)
 
   contest Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)

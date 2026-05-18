@@ -218,6 +218,160 @@ export async function importFromOpenFootball(
 }
 
 // ---------------------------------------------------------------------------
+// Local JSON format (our own schema in data/tournaments/*.json)
+// ---------------------------------------------------------------------------
+
+interface LocalTournamentJSON {
+  name: string
+  slug: string
+  edition: string
+  format: string
+  startDate: string
+  endDate: string
+  groups: Array<{ letter: string; name: string; teamCodes: string[] }>
+  teams: Array<{ code: string; name: string; flagEmoji?: string; group?: string }>
+  groupMatches: Array<{
+    matchNumber: number
+    phase: string
+    kickoff: string
+    homeTeamCode: string
+    awayTeamCode: string
+    groupLetter: string
+    venue?: string
+  }>
+  knockoutMatches: Array<{
+    matchNumber: number
+    phase: string
+    kickoff: string
+    knockoutLabel?: string
+    venue?: string
+  }>
+  scorerCandidates?: Array<{ name: string; teamCode: string }>
+}
+
+async function importLocalFormat(
+  data: LocalTournamentJSON,
+  options: { contestName: string; buyIn?: number; slug: string }
+): Promise<{ success: true; contestId: string } | { success: false; error: string }> {
+  const { contestName, buyIn = 0, slug } = options
+
+  let template = await db.tournamentTemplate.findUnique({ where: { slug } })
+  if (!template) {
+    template = await db.tournamentTemplate.create({
+      data: {
+        name: data.name,
+        slug,
+        edition: data.edition,
+        format: data.format,
+        startDate: new Date(data.startDate),
+        endDate: new Date(data.endDate),
+        jsonFile: `${slug}.json`,
+      },
+    })
+  }
+
+  const contest = await db.contest.create({
+    data: { name: contestName, templateId: template.id, buyIn, status: "DRAFT" },
+  })
+
+  await db.contestSettings.create({
+    data: {
+      contestId: contest.id,
+      pointsCorrectResult: 3,
+      pointsExactScore: 1,
+      pointsWrongResult: 0,
+      pointsWinner: 10,
+      pointsTopScorer: 5,
+      pointsBestAttack: 3,
+      pointsBestDefense: 3,
+      pointsGroupFirst: 2,
+      pointsGroupSecond: 1,
+    },
+  })
+
+  const prizepool = await db.prizepool.create({
+    data: { contestId: contest.id, itmCount: 4 },
+  })
+  await db.payout.createMany({
+    data: [
+      { prizepoolId: prizepool.id, position: 1, amount: 250 },
+      { prizepoolId: prizepool.id, position: 2, amount: 100 },
+      { prizepoolId: prizepool.id, position: 3, amount: 50 },
+      { prizepoolId: prizepool.id, position: 4, amount: 20 },
+    ],
+  })
+
+  // Teams
+  await db.team.createMany({
+    data: data.teams.map((t) => ({
+      contestId: contest.id,
+      name: t.name,
+      code: t.code,
+      flagEmoji: t.flagEmoji ?? codeToFlagEmoji(t.code),
+      group: t.group,
+    })),
+  })
+
+  const teamRecords = await db.team.findMany({
+    where: { contestId: contest.id },
+    select: { id: true, code: true },
+  })
+  const codeToId = Object.fromEntries(teamRecords.map((t) => [t.code, t.id]))
+
+  // Groups
+  for (const g of data.groups) {
+    const group = await db.group.create({
+      data: { contestId: contest.id, name: g.name, letter: g.letter },
+    })
+    await db.groupTeam.createMany({
+      data: g.teamCodes
+        .filter((c) => codeToId[c])
+        .map((c) => ({ groupId: group.id, teamId: codeToId[c] })),
+      skipDuplicates: true,
+    })
+  }
+
+  // Group matches
+  await db.match.createMany({
+    data: data.groupMatches.map((m) => ({
+      contestId: contest.id,
+      matchNumber: m.matchNumber,
+      phase: m.phase as import("@prisma/client").MatchPhase,
+      kickoff: new Date(m.kickoff),
+      homeTeamId: codeToId[m.homeTeamCode] ?? null,
+      awayTeamId: codeToId[m.awayTeamCode] ?? null,
+      groupLetter: m.groupLetter ?? null,
+      venue: m.venue ?? null,
+    })),
+  })
+
+  // Knockout skeleton
+  await db.match.createMany({
+    data: data.knockoutMatches.map((m) => ({
+      contestId: contest.id,
+      matchNumber: m.matchNumber,
+      phase: m.phase as import("@prisma/client").MatchPhase,
+      kickoff: new Date(m.kickoff),
+      knockoutLabel: m.knockoutLabel ?? null,
+      venue: m.venue ?? null,
+    })),
+  })
+
+  // Scorer candidates
+  if (data.scorerCandidates?.length) {
+    await db.scorerCandidate.createMany({
+      data: data.scorerCandidates.map((s) => ({
+        contestId: contest.id,
+        name: s.name,
+        teamCode: s.teamCode,
+      })),
+    })
+  }
+
+  return { success: true, contestId: contest.id }
+}
+
+// ---------------------------------------------------------------------------
 // Import from a local file path (for offline use)
 // ---------------------------------------------------------------------------
 
@@ -228,8 +382,13 @@ export async function importFromLocalFile(
   try {
     const fs = await import("fs/promises")
     const raw = await fs.readFile(filePath, "utf-8")
-    const data = JSON.parse(raw) as OFBTournament
-    return importOFBData(data, options)
+    const data = JSON.parse(raw)
+
+    // Detect format: our local format has "groupMatches", OFB format has "rounds"
+    if ("groupMatches" in data) {
+      return importLocalFormat(data as LocalTournamentJSON, options)
+    }
+    return importOFBData(data as OFBTournament, options)
   } catch (err) {
     return { success: false, error: String(err) }
   }
