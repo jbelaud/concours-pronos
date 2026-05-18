@@ -44,7 +44,7 @@ export function DeleteContestButton({ contestId, contestName }: { contestId: str
   return (
     <button
       onClick={() => setConfirm(true)}
-      className="mt-3 flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs text-red-400 hover:bg-red-500/10 transition-all border border-red-500/20"
+      className="flex items-center gap-1.5 py-1.5 px-3 rounded-lg text-xs text-red-400 hover:bg-red-500/10 transition-all border border-red-500/20"
     >
       <Trash2 size={12} />
       Supprimer ce concours

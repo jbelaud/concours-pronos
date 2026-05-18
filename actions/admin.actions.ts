@@ -169,6 +169,39 @@ export async function updateContestStatus(contestId: string, status: "DRAFT" | "
   return { success: true }
 }
 
+export async function fixContestFlags(contestId: string) {
+  await requireAdmin()
+
+  const teams = await db.team.findMany({ where: { contestId } })
+  const { loadTournamentTemplate } = await import("@/lib/tournament")
+
+  // Load all local templates to build a code→emoji map
+  const allTemplates = ["world-cup-2026"]
+  const emojiMap: Record<string, string> = {}
+
+  for (const slug of allTemplates) {
+    try {
+      const tpl = loadTournamentTemplate(slug)
+      for (const t of tpl.teams) {
+        if (t.flagEmoji) emojiMap[t.code] = t.flagEmoji
+      }
+    } catch { /* ignore */ }
+  }
+
+  let fixed = 0
+  for (const team of teams) {
+    const emoji = emojiMap[team.code]
+    if (emoji && team.flagEmoji !== emoji) {
+      await db.team.update({ where: { id: team.id }, data: { flagEmoji: emoji } })
+      fixed++
+    }
+  }
+
+  revalidatePath("/pronostics")
+  revalidatePath("/admin")
+  return { success: true, fixed }
+}
+
 export async function deleteContest(contestId: string) {
   await requireAdmin()
   await db.contest.delete({ where: { id: contestId } })

@@ -2,6 +2,7 @@ import Link from "next/link"
 import { db } from "@/lib/db"
 import { Plus } from "lucide-react"
 import { DeleteContestButton } from "@/components/admin/delete-contest-button"
+import { FixFlagsButton } from "@/components/admin/fix-flags-button"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = { title: "Concours" }
@@ -40,7 +41,10 @@ export default async function ConcoursPage() {
               Points correct : {contest.settings?.pointsCorrectResult ?? 3} ·
               Exact : +{contest.settings?.pointsExactScore ?? 1}
             </div>
-            <DeleteContestButton contestId={contest.id} contestName={contest.name} />
+            <div className="flex gap-2 mt-3">
+              <FixFlagsButton contestId={contest.id} />
+              <DeleteContestButton contestId={contest.id} contestName={contest.name} />
+            </div>
           </div>
         ))}
         {contests.length === 0 && (
