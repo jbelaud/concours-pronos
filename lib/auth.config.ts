@@ -1,8 +1,8 @@
 ﻿import type { NextAuthConfig } from "next-auth"
 import Google from "next-auth/providers/google"
-import type { Role } from "@prisma/client"
 
 export const authConfig: NextAuthConfig = {
+  secret: process.env.NEXTAUTH_SECRET,
   pages: { signIn: "/login", error: "/login" },
   session: { strategy: "jwt" },
   providers: [
@@ -16,7 +16,7 @@ export const authConfig: NextAuthConfig = {
     jwt({ token, user }) {
       if (user) {
         token.id = user.id
-        token.role = (user as { role?: Role }).role ?? "USER"
+        token.role = (user as { role?: string }).role ?? "USER"
         token.firstName = (user as { firstName?: string }).firstName ?? ""
         token.lastName = (user as { lastName?: string }).lastName ?? ""
         token.avatarSeed = (user as { avatarSeed?: string }).avatarSeed ?? ""
@@ -26,7 +26,7 @@ export const authConfig: NextAuthConfig = {
     session({ session, token }) {
       if (session.user && token) {
         session.user.id = token.id as string
-        session.user.role = (token.role as Role) ?? "USER"
+        session.user.role = (token.role as string) as "USER" | "ADMIN" ?? "USER"
         session.user.firstName = (token.firstName as string) ?? ""
         session.user.lastName = (token.lastName as string) ?? ""
         session.user.avatarSeed = (token.avatarSeed as string) ?? ""
