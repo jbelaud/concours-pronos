@@ -169,6 +169,14 @@ export async function updateContestStatus(contestId: string, status: "DRAFT" | "
   return { success: true }
 }
 
+export async function deleteContest(contestId: string) {
+  await requireAdmin()
+  await db.contest.delete({ where: { id: contestId } })
+  revalidatePath("/admin")
+  revalidatePath("/admin/concours")
+  return { success: true }
+}
+
 // ---------------------------------------------------------------------------
 // Results
 // ---------------------------------------------------------------------------
@@ -312,24 +320,30 @@ export async function createManualUser(data: {
 }) {
   await requireAdmin()
 
-  const existing = await db.user.findUnique({ where: { email: data.email } })
-  if (existing) return { error: "Un utilisateur avec cet email existe déjà." }
+  let user = await db.user.findUnique({ where: { email: data.email } })
 
-  const user = await db.user.create({
-    data: {
-      email: data.email,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      name: `${data.firstName} ${data.lastName}`,
-      avatarSeed: data.email,
-      role: "USER",
-    },
-  })
+  if (!user) {
+    user = await db.user.create({
+      data: {
+        email: data.email,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        name: `${data.firstName} ${data.lastName}`,
+        avatarSeed: data.email,
+        role: "USER",
+      },
+    })
+  }
 
   if (data.contestId) {
+    const alreadyIn = await db.contestParticipant.findUnique({
+      where: { contestId_userId: { contestId: data.contestId, userId: user.id } },
+    })
+    if (alreadyIn) return { error: `${user.firstName || data.firstName} est déjà inscrit à ce concours.` }
+
     await db.contestParticipant.create({
       data: { contestId: data.contestId, userId: user.id },
-    }).catch(() => {})
+    })
     await db.leaderboardEntry.create({
       data: { contestId: data.contestId, userId: user.id },
     }).catch(() => {})

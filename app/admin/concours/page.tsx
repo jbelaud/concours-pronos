@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { db } from "@/lib/db"
 import { Plus } from "lucide-react"
+import { DeleteContestButton } from "@/components/admin/delete-contest-button"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = { title: "Concours" }
@@ -39,6 +40,7 @@ export default async function ConcoursPage() {
               Points correct : {contest.settings?.pointsCorrectResult ?? 3} ·
               Exact : +{contest.settings?.pointsExactScore ?? 1}
             </div>
+            <DeleteContestButton contestId={contest.id} contestName={contest.name} />
           </div>
         ))}
         {contests.length === 0 && (
