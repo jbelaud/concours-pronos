@@ -27,7 +27,7 @@ export default async function ComptePage() {
   if (!user) redirect("/login")
 
   const contest = await db.contest.findFirst({
-    where: { status: { in: ["ONGOING", "REGISTRATION"] } },
+    where: { status: { in: ["ONGOING", "REGISTRATION", "DRAFT"] } },
     orderBy: { createdAt: "desc" },
   })
 

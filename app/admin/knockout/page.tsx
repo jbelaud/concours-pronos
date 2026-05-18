@@ -16,7 +16,7 @@ export default async function KnockoutPage({ searchParams }: Props) {
   const contest = contestId
     ? await db.contest.findUnique({ where: { id: contestId } })
     : await db.contest.findFirst({
-        where: { status: { in: ["ONGOING", "REGISTRATION"] } },
+        where: { status: { in: ["ONGOING", "REGISTRATION", "DRAFT"] } },
         orderBy: { createdAt: "desc" },
       })
 

@@ -13,7 +13,7 @@ export default async function ClassementPage() {
   if (!session?.user) redirect("/login")
 
   const contest = await db.contest.findFirst({
-    where: { status: { in: ["ONGOING", "REGISTRATION", "FINISHED"] } },
+    where: { status: { in: ["ONGOING", "REGISTRATION", "FINISHED", "DRAFT"] } },
     include: { prizepool: { include: { payouts: true } } },
     orderBy: { createdAt: "desc" },
   })

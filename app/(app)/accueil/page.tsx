@@ -14,7 +14,7 @@ export default async function AccueilPage() {
 
   // Get active contest
   const contest = await db.contest.findFirst({
-    where: { status: { in: ["ONGOING", "REGISTRATION"] } },
+    where: { status: { in: ["ONGOING", "REGISTRATION", "DRAFT"] } },
     include: {
       settings: true,
       prizepool: { include: { payouts: true } },

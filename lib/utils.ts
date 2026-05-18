@@ -82,6 +82,7 @@ export function capitalize(text: string): string {
 
 export const PHASE_LABELS: Record<string, string> = {
   GROUP: "Phase de groupes",
+  ROUND_OF_32: "Seizièmes de finale",
   ROUND_OF_16: "Huitièmes de finale",
   QUARTER_FINAL: "Quarts de finale",
   SEMI_FINAL: "Demi-finales",
@@ -91,9 +92,10 @@ export const PHASE_LABELS: Record<string, string> = {
 
 export const PHASE_ORDER: Record<string, number> = {
   GROUP: 1,
-  ROUND_OF_16: 2,
-  QUARTER_FINAL: 3,
-  SEMI_FINAL: 4,
-  THIRD_PLACE: 5,
-  FINAL: 6,
+  ROUND_OF_32: 2,
+  ROUND_OF_16: 3,
+  QUARTER_FINAL: 4,
+  SEMI_FINAL: 5,
+  THIRD_PLACE: 6,
+  FINAL: 7,
 }
