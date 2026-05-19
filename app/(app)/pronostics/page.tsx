@@ -3,6 +3,7 @@ import { db } from "@/lib/db"
 import { redirect } from "next/navigation"
 import { isMatchLocked } from "@/lib/utils"
 import { PredictionHub } from "@/components/predictions/prediction-hub"
+import { computeGroupStandings, getBestThirdPlaceTeams, resolveRoundOf32, type MatchResult, type GroupStandings } from "@/lib/wc2026-standings"
 import type { Metadata } from "next"
 import type { MatchWithPrediction } from "@/types"
 
@@ -96,6 +97,33 @@ export default async function PronosticsPage() {
     db.scorerCandidate.findMany({ where: { contestId: contest.id }, orderBy: { name: "asc" } }),
   ])
 
+  // Standings pour l'onglet Compétition
+  const groupMatchResults: MatchResult[] = matchesWithPrediction
+    .filter((m) => m.phase === "GROUP" && m.homeScore !== null && m.awayScore !== null && m.homeTeam && m.awayTeam)
+    .map((m) => ({
+      homeTeamCode: m.homeTeam!.code,
+      awayTeamCode: m.awayTeam!.code,
+      homeScore: m.homeScore!,
+      awayScore: m.awayScore!,
+      groupLetter: m.groupLetter ?? "",
+    }))
+
+  const teamMeta: Record<string, { name: string; flagEmoji: string | null }> = {}
+  for (const t of teams) teamMeta[t.code] = { name: t.name, flagEmoji: t.flagEmoji }
+
+  const allGroupStandings: GroupStandings[] = groups.map((group) => ({
+    letter: group.letter,
+    teams: computeGroupStandings(
+      group.letter,
+      group.teams.map((gt) => gt.team.code),
+      teamMeta,
+      groupMatchResults
+    ),
+  }))
+
+  const bestThirds = getBestThirdPlaceTeams(allGroupStandings)
+  const roundOf32Matchups = resolveRoundOf32(allGroupStandings, bestThirds)
+
   // Comptage progression
   const pendingMatchCount = matchesWithPrediction.filter((m) => !m.isLocked && !m.prediction).length
   const completedGroupPreds = myBonusPred?.groupPredictions.length ?? 0
@@ -123,6 +151,9 @@ export default async function PronosticsPage() {
       bonusCompleted={bonusCompleted}
       bonusTotal={bonusTotal}
       userId={userId}
+      allGroupStandings={allGroupStandings}
+      bestThirds={bestThirds}
+      roundOf32Matchups={roundOf32Matchups}
     />
   )
 }

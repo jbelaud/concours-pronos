@@ -2,12 +2,14 @@
 
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Trophy, Users, BarChart2, Star } from "lucide-react"
+import { Trophy, Users, Star, BarChart2 } from "lucide-react"
 import { MatchesTab } from "./tabs/matches-tab"
 import { TournamentTab } from "./tabs/tournament-tab"
 import { CommunityTab } from "./tabs/community-tab"
+import { CompetitionTab } from "./tabs/competition-tab"
 import { cn } from "@/lib/utils"
-import type { MatchWithPrediction, Team, Group, ScorerCandidate } from "@/types"
+import type { MatchWithPrediction, Team, ScorerCandidate } from "@/types"
+import type { GroupStandings, TeamStanding, ResolvedMatchup } from "@/lib/wc2026-standings"
 
 interface GroupWithTeams {
   id: string
@@ -61,12 +63,16 @@ interface Props {
   bonusCompleted: number
   bonusTotal: number
   userId: string
+  allGroupStandings: GroupStandings[]
+  bestThirds: TeamStanding[]
+  roundOf32Matchups: ResolvedMatchup[]
 }
 
 const TABS = [
-  { id: "matches",    label: "Matchs",     icon: Trophy },
-  { id: "tournament", label: "Tournoi",    icon: Star },
-  { id: "community",  label: "Communauté", icon: Users },
+  { id: "matches",     label: "Matchs",      icon: Trophy },
+  { id: "tournament",  label: "Tournoi",     icon: Star },
+  { id: "competition", label: "Compétition", icon: BarChart2 },
+  { id: "community",   label: "Communauté",  icon: Users },
 ] as const
 
 type TabId = typeof TABS[number]["id"]
@@ -84,7 +90,7 @@ export function PredictionHub(props: Props) {
         <p className="text-sm text-[var(--foreground-muted)]">{props.contest.name}</p>
       </div>
 
-      {/* Progress bar */}
+      {/* Progress summary */}
       <div className="px-4 mb-3">
         <ProgressSummary
           pendingMatchCount={pendingMatchCount}
@@ -96,9 +102,9 @@ export function PredictionHub(props: Props) {
         />
       </div>
 
-      {/* Sticky tab bar */}
+      {/* Sticky tab bar — scrollable for 4 tabs */}
       <div className="sticky top-0 z-20 bg-[var(--background)] border-b border-[var(--border)] px-4 py-2">
-        <div className="flex gap-1 bg-[var(--surface-elevated)] rounded-xl p-1">
+        <div className="flex gap-1 overflow-x-auto scrollbar-none bg-[var(--surface-elevated)] rounded-xl p-1">
           {TABS.map((tab) => {
             const Icon = tab.icon
             const isActive = activeTab === tab.id
@@ -112,13 +118,13 @@ export function PredictionHub(props: Props) {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all relative",
+                  "flex-1 shrink-0 flex items-center justify-center gap-1 py-2 px-2 rounded-lg text-[11px] font-semibold transition-all relative whitespace-nowrap",
                   isActive
                     ? "gradient-accent text-white shadow-sm"
                     : "text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
                 )}
               >
-                <Icon size={13} />
+                <Icon size={12} />
                 {tab.label}
                 {badge !== null && (
                   <span className={cn(
@@ -162,6 +168,13 @@ export function PredictionHub(props: Props) {
                 tournamentLocked={props.tournamentLocked}
               />
             )}
+            {activeTab === "competition" && (
+              <CompetitionTab
+                allGroupStandings={props.allGroupStandings}
+                bestThirds={props.bestThirds}
+                roundOf32Matchups={props.roundOf32Matchups}
+              />
+            )}
             {activeTab === "community" && (
               <CommunityTab
                 matches={props.matches}
@@ -180,12 +193,7 @@ export function PredictionHub(props: Props) {
 }
 
 function ProgressSummary({
-  pendingMatchCount,
-  bonusCompleted,
-  bonusTotal,
-  tournamentLocked,
-  onGoTournament,
-  onGoMatches,
+  pendingMatchCount, bonusCompleted, bonusTotal, tournamentLocked, onGoTournament, onGoMatches,
 }: {
   pendingMatchCount: number
   bonusCompleted: number
@@ -209,10 +217,7 @@ function ProgressSummary({
   return (
     <div className="flex flex-col gap-1.5">
       {hasPendingBonus && (
-        <button
-          onClick={onGoTournament}
-          className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--warning-dim)] border border-[var(--warning)]/20 w-full text-left"
-        >
+        <button onClick={onGoTournament} className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--warning-dim)] border border-[var(--warning)]/20 w-full text-left">
           <div className="flex items-center gap-2">
             <span className="text-base">⚠️</span>
             <div>
@@ -224,10 +229,7 @@ function ProgressSummary({
         </button>
       )}
       {hasPendingMatches && (
-        <button
-          onClick={onGoMatches}
-          className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--accent-dim)] border border-[var(--accent)]/20 w-full text-left"
-        >
+        <button onClick={onGoMatches} className="flex items-center justify-between p-2.5 rounded-xl bg-[var(--accent-dim)] border border-[var(--accent)]/20 w-full text-left">
           <div className="flex items-center gap-2">
             <span className="text-base">⚽</span>
             <div>
