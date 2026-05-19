@@ -27,6 +27,7 @@ interface Props {
   communityBonusPredictions: CommunityBonusPrediction[]
   groups: GroupWithTeams[]
   userId: string
+  tournamentLocked: boolean
 }
 
 const PHASE_SHORT: Record<string, string> = {
@@ -39,7 +40,7 @@ const PHASE_SHORT: Record<string, string> = {
   FINAL: "Finale",
 }
 
-export function CommunityTab({ matches, communityPredictions, communityBonusPredictions, groups, userId }: Props) {
+export function CommunityTab({ matches, communityPredictions, communityBonusPredictions, groups, userId, tournamentLocked }: Props) {
   const [activeSection, setActiveSection] = useState<"matches" | "bonus">("matches")
 
   const communityByMatch = useMemo(() => {
@@ -61,7 +62,7 @@ export function CommunityTab({ matches, communityPredictions, communityBonusPred
       })
   }, [matches, communityByMatch])
 
-  const hasBonusPreds = communityBonusPredictions.length > 0
+  const hasBonusPreds = tournamentLocked && communityBonusPredictions.length > 0
 
   return (
     <div className="flex flex-col gap-3 pb-6">
@@ -333,7 +334,7 @@ function PredictionsModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-end justify-center bg-black/60 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
