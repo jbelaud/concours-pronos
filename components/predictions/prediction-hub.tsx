@@ -2,14 +2,12 @@
 
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Trophy, Users, Star, BarChart2 } from "lucide-react"
+import { Trophy, Users, Star } from "lucide-react"
 import { MatchesTab } from "./tabs/matches-tab"
 import { TournamentTab } from "./tabs/tournament-tab"
 import { CommunityTab } from "./tabs/community-tab"
-import { CompetitionTab } from "./tabs/competition-tab"
 import { cn } from "@/lib/utils"
 import type { MatchWithPrediction, Team, ScorerCandidate } from "@/types"
-import type { GroupStandings, TeamStanding, ResolvedMatchup } from "@/lib/wc2026-standings"
 
 interface GroupWithTeams {
   id: string
@@ -63,16 +61,12 @@ interface Props {
   bonusCompleted: number
   bonusTotal: number
   userId: string
-  allGroupStandings: GroupStandings[]
-  bestThirds: TeamStanding[]
-  roundOf32Matchups: ResolvedMatchup[]
 }
 
 const TABS = [
-  { id: "matches",     label: "Matchs",      icon: Trophy },
-  { id: "tournament",  label: "Tournoi",     icon: Star },
-  { id: "competition", label: "Compétition", icon: BarChart2 },
-  { id: "community",   label: "Communauté",  icon: Users },
+  { id: "matches",    label: "Matchs",     icon: Trophy },
+  { id: "tournament", label: "Tournoi",    icon: Star },
+  { id: "community",  label: "Communauté", icon: Users },
 ] as const
 
 type TabId = typeof TABS[number]["id"]
@@ -166,13 +160,6 @@ export function PredictionHub(props: Props) {
                 myBonusPred={props.myBonusPred}
                 firstMatchKickoff={props.firstMatchKickoff}
                 tournamentLocked={props.tournamentLocked}
-              />
-            )}
-            {activeTab === "competition" && (
-              <CompetitionTab
-                allGroupStandings={props.allGroupStandings}
-                bestThirds={props.bestThirds}
-                roundOf32Matchups={props.roundOf32Matchups}
               />
             )}
             {activeTab === "community" && (

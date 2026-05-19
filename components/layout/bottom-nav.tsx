@@ -2,15 +2,16 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, ClipboardList, Trophy, User } from "lucide-react"
+import { Home, ClipboardList, Trophy, User, Globe } from "lucide-react"
 import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 
 const navItems = [
-  { href: "/accueil", label: "Accueil", icon: Home },
-  { href: "/pronostics", label: "Pronostics", icon: ClipboardList },
-  { href: "/classement", label: "Classement", icon: Trophy },
-  { href: "/compte", label: "Mon compte", icon: User },
+  { href: "/accueil",     label: "Accueil",      icon: Home },
+  { href: "/pronostics",  label: "Pronostics",   icon: ClipboardList },
+  { href: "/classement",  label: "Classement",   icon: Trophy },
+  { href: "/competition", label: "Compétition",  icon: Globe },
+  { href: "/compte",      label: "Mon compte",   icon: User },
 ]
 
 export function BottomNav() {
