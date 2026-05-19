@@ -23,6 +23,7 @@ export default async function RejoindreContestPage({ params }: Props) {
       iban: true,
       paymentInstructions: true,
       _count: { select: { participants: true } },
+      participants: { select: { hasPaid: true } },
       prizepool: { include: { payouts: { orderBy: { position: "asc" } } } },
     },
   })
@@ -41,6 +42,25 @@ export default async function RejoindreContestPage({ params }: Props) {
       where: { contestId_userId: { contestId: contest.id, userId } },
     })
     alreadyJoined = !!existing
+  }
+
+  // Calcul dynamique du prizepool réel
+  const paidCount = contest.participants.filter((p) => p.hasPaid).length
+  const totalCount = contest._count.participants
+  const collectedAmount = paidCount * (contest.buyIn ?? 0)
+  const allPaid = paidCount === totalCount && totalCount > 0
+
+  // Calcul des gains par place à partir des ratios définis par l'admin
+  // On applique les mêmes ratios que les payouts admin mais sur le montant collecté
+  const prizepool = contest.prizepool
+  let dynamicPayouts: Array<{ position: number; amount: number }> = []
+  if (prizepool && prizepool.payouts.length > 0 && collectedAmount > 0 && prizepool.totalAmount > 0) {
+    dynamicPayouts = prizepool.payouts.map((p) => ({
+      position: p.position,
+      amount: Math.round((p.amount / prizepool.totalAmount) * collectedAmount),
+    }))
+  } else if (prizepool && prizepool.payouts.length > 0) {
+    dynamicPayouts = prizepool.payouts
   }
 
   return (
@@ -63,31 +83,58 @@ export default async function RejoindreContestPage({ params }: Props) {
         <div className="surface-card p-4 mb-4">
           <div className="font-bold text-[var(--foreground)] text-lg mb-1">{contest.name}</div>
           <div className="flex items-center gap-3 text-sm text-[var(--foreground-muted)]">
-            <span>👥 {contest._count.participants} participants</span>
+            <span>👥 {totalCount} participant{totalCount > 1 ? "s" : ""}</span>
             {contest.buyIn > 0 && <span>💰 Buy-in : {contest.buyIn}€</span>}
           </div>
 
-          {/* Prizepool */}
-          {contest.prizepool && contest.prizepool.payouts.length > 0 && (
+          {/* Prizepool dynamique */}
+          {prizepool && dynamicPayouts.length > 0 && (
             <div className="mt-3 pt-3 border-t border-[var(--border)]">
-              <div className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wide mb-2">
-                Prizepool
-                {contest.prizepool.totalAmount > 0 && (
-                  <span className="ml-2 text-[var(--accent)] font-bold">
-                    {contest.prizepool.totalAmount}€ total
-                  </span>
-                )}
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wide">
+                  Cagnotte
+                </span>
+                <div className="flex items-center gap-1.5">
+                  {collectedAmount > 0 && (
+                    <span className="text-sm font-black text-[var(--accent)]">{collectedAmount}€</span>
+                  )}
+                  {!allPaid && totalCount > 0 && (
+                    <span className="text-[10px] text-[var(--foreground-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 rounded-full">
+                      {paidCount}/{totalCount} payés
+                    </span>
+                  )}
+                  {allPaid && (
+                    <span className="text-[10px] text-[var(--success)] bg-[var(--success-dim)] px-1.5 py-0.5 rounded-full">
+                      Complet
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="flex flex-col gap-1">
-                {contest.prizepool.payouts.map((p) => (
+                {dynamicPayouts.map((p) => (
                   <div key={p.position} className="flex items-center justify-between text-sm">
                     <span className="text-[var(--foreground-muted)]">
-                      {p.position === 1 ? "🥇" : p.position === 2 ? "🥈" : p.position === 3 ? "🥉" : `${p.position}e`}
+                      {p.position === 1 ? "🥇 1er" : p.position === 2 ? "🥈 2e" : p.position === 3 ? "🥉 3e" : `${p.position}e`}
                     </span>
-                    <span className="font-semibold text-[var(--foreground)]">{p.amount}€</span>
+                    <span className="font-semibold text-[var(--foreground)]">
+                      {p.amount}€
+                      {!allPaid && collectedAmount > 0 && (
+                        <span className="text-[10px] text-[var(--foreground-subtle)] ml-1">*</span>
+                      )}
+                    </span>
                   </div>
                 ))}
               </div>
+              {!allPaid && collectedAmount > 0 && (
+                <p className="text-[10px] text-[var(--foreground-subtle)] mt-2">
+                  * Estimé sur {paidCount} paiement{paidCount > 1 ? "s" : ""} reçu{paidCount > 1 ? "s" : ""} — mis à jour à chaque paiement
+                </p>
+              )}
+              {collectedAmount === 0 && (
+                <p className="text-[10px] text-[var(--foreground-subtle)] mt-1">
+                  Cagnotte calculée dès le premier paiement reçu
+                </p>
+              )}
             </div>
           )}
         </div>

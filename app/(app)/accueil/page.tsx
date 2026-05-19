@@ -19,6 +19,7 @@ export default async function AccueilPage() {
       settings: true,
       prizepool: { include: { payouts: { orderBy: { position: "asc" } } } },
       _count: { select: { participants: true } },
+      participants: { select: { hasPaid: true } },
     },
     orderBy: { createdAt: "desc" },
   })
@@ -73,6 +74,16 @@ export default async function AccueilPage() {
     where: { contestId_userId: { contestId: contest.id, userId: session.user.id } },
     select: { hasPaid: true },
   })
+
+  // Prizepool dynamique basé sur les paiements réels
+  const paidCount = contest.participants.filter((p) => p.hasPaid).length
+  const totalCount = contest._count.participants
+  const collectedAmount = paidCount * (contest.buyIn ?? 0)
+  const allPaid = paidCount === totalCount && totalCount > 0
+  const pp = contest.prizepool
+  const dynamicPayouts = pp && pp.payouts.length > 0 && collectedAmount > 0 && pp.totalAmount > 0
+    ? pp.payouts.map((p) => ({ position: p.position, amount: Math.round((p.amount / pp.totalAmount) * collectedAmount) }))
+    : pp?.payouts ?? []
 
   // Pending predictions count
   const pendingPredictions = await db.match.count({
@@ -167,25 +178,31 @@ export default async function AccueilPage() {
         </div>
       )}
 
-      {/* Prizepool si défini */}
-      {contest.prizepool && contest.prizepool.payouts.length > 0 && (
+      {/* Prizepool dynamique */}
+      {pp && dynamicPayouts.length > 0 && (
         <section>
-          <SectionHeader title="Prizepool" icon={<Trophy size={16} />} />
+          <SectionHeader title="Cagnotte" icon={<Trophy size={16} />} />
           <div className="surface-card p-3 flex flex-col gap-1.5">
-            {contest.prizepool.totalAmount > 0 && (
-              <div className="flex items-center justify-between text-sm mb-1">
-                <span className="text-[var(--foreground-muted)]">Total</span>
-                <span className="font-black text-[var(--accent)]">{contest.prizepool.totalAmount}€</span>
-              </div>
-            )}
-            {contest.prizepool.payouts.map((p) => (
+            <div className="flex items-center justify-between mb-1">
+              {collectedAmount > 0
+                ? <span className="font-black text-[var(--accent)] text-base">{collectedAmount}€ collectés</span>
+                : <span className="text-sm text-[var(--foreground-muted)]">Aucun paiement reçu</span>
+              }
+              <span className="text-[10px] text-[var(--foreground-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 rounded-full">
+                {allPaid ? "✓ Complet" : `${paidCount}/${totalCount} payés`}
+              </span>
+            </div>
+            {dynamicPayouts.map((p) => (
               <div key={p.position} className="flex items-center justify-between text-sm">
                 <span className="text-[var(--foreground-muted)]">
                   {p.position === 1 ? "🥇 1er" : p.position === 2 ? "🥈 2e" : p.position === 3 ? "🥉 3e" : `${p.position}e`}
                 </span>
-                <span className="font-semibold text-[var(--foreground)]">{p.amount}€</span>
+                <span className="font-semibold text-[var(--foreground)]">{p.amount}€{!allPaid && collectedAmount > 0 ? "*" : ""}</span>
               </div>
             ))}
+            {!allPaid && collectedAmount > 0 && (
+              <p className="text-[10px] text-[var(--foreground-subtle)] mt-1">* Estimé — mis à jour à chaque paiement reçu</p>
+            )}
           </div>
         </section>
       )}
