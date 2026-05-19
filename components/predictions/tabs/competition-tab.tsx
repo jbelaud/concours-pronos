@@ -10,28 +10,34 @@ interface Props {
   roundOf32Matchups: ResolvedMatchup[]
 }
 
+type Section = "groups" | "thirds" | "attack" | "defense" | "bracket"
+
 export function CompetitionTab({ allGroupStandings, bestThirds, roundOf32Matchups }: Props) {
-  const [activeSection, setActiveSection] = useState<"groups" | "thirds" | "bracket">("groups")
+  const [activeSection, setActiveSection] = useState<Section>("groups")
 
   const resolvedCount = roundOf32Matchups.filter((m) => m.homeTeamCode && m.awayTeamCode).length
+
+  // Flatten all teams from standings for attack/defense rankings
+  const allTeams = allGroupStandings.flatMap((g) => g.teams)
+  const teamsWithMatches = allTeams.filter((t) => t.played > 0)
 
   return (
     <div className="flex flex-col gap-3 pb-6">
       {/* Section pills */}
       <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-        <SectionPill active={activeSection === "groups"} onClick={() => setActiveSection("groups")}>
-          Groupes
-        </SectionPill>
-        <SectionPill active={activeSection === "thirds"} onClick={() => setActiveSection("thirds")}>
-          Meilleurs 3es
-        </SectionPill>
+        <SectionPill active={activeSection === "groups"} onClick={() => setActiveSection("groups")}>🏟️ Groupes</SectionPill>
+        <SectionPill active={activeSection === "thirds"} onClick={() => setActiveSection("thirds")}>🥉 3es</SectionPill>
+        <SectionPill active={activeSection === "attack"} onClick={() => setActiveSection("attack")}>⚔️ Attaque</SectionPill>
+        <SectionPill active={activeSection === "defense"} onClick={() => setActiveSection("defense")}>🛡️ Défense</SectionPill>
         <SectionPill active={activeSection === "bracket"} onClick={() => setActiveSection("bracket")}>
-          1/16 de finale {resolvedCount > 0 && <span className="ml-1 opacity-70">({resolvedCount}/16)</span>}
+          📊 1/16 {resolvedCount > 0 && <span className="opacity-70">({resolvedCount}/16)</span>}
         </SectionPill>
       </div>
 
       {activeSection === "groups" && <GroupsSection standings={allGroupStandings} />}
       {activeSection === "thirds" && <ThirdsSection allGroupStandings={allGroupStandings} bestThirds={bestThirds} />}
+      {activeSection === "attack" && <AttackRanking teams={teamsWithMatches} />}
+      {activeSection === "defense" && <DefenseRanking teams={teamsWithMatches} />}
       {activeSection === "bracket" && <BracketSection matchups={roundOf32Matchups} />}
     </div>
   )
@@ -211,6 +217,107 @@ function ThirdsSection({ allGroupStandings, bestThirds }: { allGroupStandings: G
           })}
         </tbody>
       </table>
+    </div>
+  )
+}
+
+// ── Attack ranking ────────────────────────────────────────────────────────────
+
+function AttackRanking({ teams }: { teams: TeamStanding[] }) {
+  const sorted = [...teams].sort((a, b) => {
+    if (b.goalsFor !== a.goalsFor) return b.goalsFor - a.goalsFor
+    return b.played !== a.played ? (b.goalsFor / b.played) - (a.goalsFor / a.played) : 0
+  })
+  const max = sorted[0]?.goalsFor ?? 1
+
+  if (sorted.length === 0) {
+    return <EmptyState icon="⚔️" message="Les stats d'attaque s'afficheront après les premiers matchs." />
+  }
+
+  return (
+    <div className="surface-card overflow-hidden">
+      <div className="px-3 py-2 border-b border-[var(--border)]">
+        <span className="text-xs font-bold text-[var(--foreground)]">⚔️ Meilleures attaques</span>
+        <span className="text-[10px] text-[var(--foreground-subtle)] ml-2">Buts marqués</span>
+      </div>
+      <div className="flex flex-col px-3 py-2 gap-2">
+        {sorted.map((t, i) => {
+          const avg = t.played > 0 ? (t.goalsFor / t.played).toFixed(1) : "0.0"
+          return (
+            <div key={t.code} className="flex items-center gap-2">
+              <span className="text-[10px] text-[var(--foreground-subtle)] w-4 shrink-0 text-right">
+                {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}`}
+              </span>
+              <span className="text-base leading-none shrink-0">{t.flagEmoji ?? "🏳️"}</span>
+              <span className="flex-1 text-xs text-[var(--foreground)] truncate">{t.name}</span>
+              <div className="w-20 h-1.5 rounded-full bg-[var(--surface-elevated)] overflow-hidden">
+                <div
+                  className={cn("h-full rounded-full", i === 0 ? "bg-[var(--gold)]" : "bg-[var(--accent)]/60")}
+                  style={{ width: `${Math.round((t.goalsFor / max) * 100)}%` }}
+                />
+              </div>
+              <span className="text-xs font-black text-[var(--foreground)] w-6 text-right shrink-0">{t.goalsFor}</span>
+              <span className="text-[9px] text-[var(--foreground-subtle)] w-10 text-right shrink-0">{avg}/m</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── Defense ranking ───────────────────────────────────────────────────────────
+
+function DefenseRanking({ teams }: { teams: TeamStanding[] }) {
+  const sorted = [...teams].sort((a, b) => {
+    if (a.goalsAgainst !== b.goalsAgainst) return a.goalsAgainst - b.goalsAgainst
+    return a.played !== b.played ? (a.goalsAgainst / a.played) - (b.goalsAgainst / b.played) : 0
+  })
+  const max = Math.max(...sorted.map((t) => t.goalsAgainst), 1)
+
+  if (sorted.length === 0) {
+    return <EmptyState icon="🛡️" message="Les stats de défense s'afficheront après les premiers matchs." />
+  }
+
+  return (
+    <div className="surface-card overflow-hidden">
+      <div className="px-3 py-2 border-b border-[var(--border)]">
+        <span className="text-xs font-bold text-[var(--foreground)]">🛡️ Meilleures défenses</span>
+        <span className="text-[10px] text-[var(--foreground-subtle)] ml-2">Buts encaissés (moins = mieux)</span>
+      </div>
+      <div className="flex flex-col px-3 py-2 gap-2">
+        {sorted.map((t, i) => {
+          const avg = t.played > 0 ? (t.goalsAgainst / t.played).toFixed(1) : "0.0"
+          // Bar inversée : moins de buts encaissés = barre plus longue
+          const barPct = max > 0 ? Math.round((1 - t.goalsAgainst / max) * 100) : 100
+          return (
+            <div key={t.code} className="flex items-center gap-2">
+              <span className="text-[10px] text-[var(--foreground-subtle)] w-4 shrink-0 text-right">
+                {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}`}
+              </span>
+              <span className="text-base leading-none shrink-0">{t.flagEmoji ?? "🏳️"}</span>
+              <span className="flex-1 text-xs text-[var(--foreground)] truncate">{t.name}</span>
+              <div className="w-20 h-1.5 rounded-full bg-[var(--surface-elevated)] overflow-hidden">
+                <div
+                  className={cn("h-full rounded-full", i === 0 ? "bg-[var(--success)]" : "bg-[var(--success)]/40")}
+                  style={{ width: `${Math.max(barPct, 4)}%` }}
+                />
+              </div>
+              <span className="text-xs font-black text-[var(--foreground)] w-6 text-right shrink-0">{t.goalsAgainst}</span>
+              <span className="text-[9px] text-[var(--foreground-subtle)] w-10 text-right shrink-0">{avg}/m</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function EmptyState({ icon, message }: { icon: string; message: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-12 gap-3">
+      <span className="text-3xl">{icon}</span>
+      <p className="text-sm text-[var(--foreground-muted)] text-center">{message}</p>
     </div>
   )
 }
