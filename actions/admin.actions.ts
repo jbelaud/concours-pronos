@@ -2,12 +2,9 @@
 
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
-import { sendInvitationEmail } from "@/lib/email"
 import { loadTournamentTemplate } from "@/lib/tournament"
 import { recalculateMatchPredictions, rebuildLeaderboard, takeRankingSnapshot } from "@/lib/ranking"
 import { revalidatePath } from "next/cache"
-import { addDays } from "date-fns"
-import type { InviteFormData } from "@/types"
 
 async function requireAdmin() {
   const session = await auth()
@@ -25,6 +22,8 @@ export async function createContest(data: {
   name: string
   templateSlug: string
   buyIn: number
+  iban?: string
+  paymentInstructions?: string
   settings: {
     pointsCorrectResult: number
     pointsExactScore: number
@@ -37,13 +36,13 @@ export async function createContest(data: {
     pointsGroupSecond: number
   }
   prizepool: {
+    totalAmount: number
     itmCount: number
     payouts: Array<{ position: number; amount: number }>
   }
 }) {
   await requireAdmin()
 
-  // Load & register template if not yet registered
   const template = loadTournamentTemplate(data.templateSlug)
 
   let dbTemplate = await db.tournamentTemplate.findUnique({
@@ -69,18 +68,22 @@ export async function createContest(data: {
       name: data.name,
       templateId: dbTemplate.id,
       buyIn: data.buyIn,
+      iban: data.iban || null,
+      paymentInstructions: data.paymentInstructions || null,
       status: "DRAFT",
     },
   })
 
-  // Settings
   await db.contestSettings.create({
     data: { contestId: contest.id, ...data.settings },
   })
 
-  // Prizepool
   const prizepool = await db.prizepool.create({
-    data: { contestId: contest.id, itmCount: data.prizepool.itmCount },
+    data: {
+      contestId: contest.id,
+      totalAmount: data.prizepool.totalAmount,
+      itmCount: data.prizepool.itmCount,
+    },
   })
 
   await db.payout.createMany({
@@ -117,7 +120,6 @@ export async function createContest(data: {
     })
   }
 
-  // Import group matches
   const teamMap = await db.team.findMany({
     where: { contestId: contest.id },
     select: { id: true, code: true },
@@ -137,7 +139,6 @@ export async function createContest(data: {
     })),
   })
 
-  // Import knockout skeleton (no teams assigned yet)
   await db.match.createMany({
     data: template.knockoutMatches.map((m) => ({
       contestId: contest.id,
@@ -149,7 +150,6 @@ export async function createContest(data: {
     })),
   })
 
-  // Import scorer candidates
   await db.scorerCandidate.createMany({
     data: template.scorerCandidates.map((s) => ({
       contestId: contest.id,
@@ -169,13 +169,84 @@ export async function updateContestStatus(contestId: string, status: "DRAFT" | "
   return { success: true }
 }
 
+export async function updateContestPayment(data: {
+  contestId: string
+  iban: string
+  paymentInstructions: string
+}) {
+  await requireAdmin()
+  await db.contest.update({
+    where: { id: data.contestId },
+    data: {
+      iban: data.iban || null,
+      paymentInstructions: data.paymentInstructions || null,
+    },
+  })
+  revalidatePath("/admin/concours")
+  revalidatePath("/accueil")
+  return { success: true }
+}
+
+export async function updateContestPrizepool(data: {
+  contestId: string
+  totalAmount: number
+  itmCount: number
+  payouts: Array<{ position: number; amount: number }>
+}) {
+  await requireAdmin()
+
+  const prizepool = await db.prizepool.findUnique({
+    where: { contestId: data.contestId },
+  })
+
+  if (!prizepool) {
+    const created = await db.prizepool.create({
+      data: { contestId: data.contestId, totalAmount: data.totalAmount, itmCount: data.itmCount },
+    })
+    await db.payout.createMany({
+      data: data.payouts.map((p) => ({
+        prizepoolId: created.id,
+        position: p.position,
+        amount: p.amount,
+      })),
+    })
+  } else {
+    await db.prizepool.update({
+      where: { id: prizepool.id },
+      data: { totalAmount: data.totalAmount, itmCount: data.itmCount },
+    })
+    await db.payout.deleteMany({ where: { prizepoolId: prizepool.id } })
+    await db.payout.createMany({
+      data: data.payouts.map((p) => ({
+        prizepoolId: prizepool.id,
+        position: p.position,
+        amount: p.amount,
+      })),
+    })
+  }
+
+  revalidatePath("/admin/concours")
+  revalidatePath("/accueil")
+  return { success: true }
+}
+
+export async function regenerateContestInviteToken(contestId: string) {
+  await requireAdmin()
+  const token = crypto.randomUUID()
+  await db.contest.update({
+    where: { id: contestId },
+    data: { inviteToken: token },
+  })
+  revalidatePath("/admin/concours")
+  return { success: true, token }
+}
+
 export async function fixContestFlags(contestId: string) {
   await requireAdmin()
 
   const teams = await db.team.findMany({ where: { contestId } })
   const { loadTournamentTemplate } = await import("@/lib/tournament")
 
-  // Load all local templates to build a code→emoji map
   const allTemplates = ["world-cup-2026"]
   const emojiMap: Record<string, string> = {}
 
@@ -273,65 +344,6 @@ export async function assignKnockoutTeam(data: {
 }
 
 // ---------------------------------------------------------------------------
-// Invitations
-// ---------------------------------------------------------------------------
-
-export async function sendInvite(data: InviteFormData) {
-  await requireAdmin()
-
-  const existing = await db.invite.findUnique({ where: { email: data.email } })
-  if (existing) {
-    if (existing.status === "ACCEPTED") {
-      return { error: "Cette adresse email a déjà un compte." }
-    }
-    // Resend
-    const token = crypto.randomUUID()
-    await db.invite.update({
-      where: { id: existing.id },
-      data: {
-        token,
-        status: "PENDING",
-        expiresAt: addDays(new Date(), 7),
-        sentAt: new Date(),
-        contestId: data.contestId,
-      },
-    })
-
-    await sendInvitationEmail({
-      to: { email: data.email, firstName: existing.firstName, lastName: existing.lastName },
-      token,
-    })
-
-    revalidatePath("/admin/invitations")
-    return { success: true, resent: true }
-  }
-
-  const token = crypto.randomUUID()
-
-  await db.invite.create({
-    data: {
-      email: data.email,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      token,
-      expiresAt: addDays(new Date(), 7),
-      contestId: data.contestId,
-    },
-  })
-
-  await sendInvitationEmail({
-    to: { email: data.email, firstName: data.firstName, lastName: data.lastName },
-    token,
-    contestName: data.contestId
-      ? (await db.contest.findUnique({ where: { id: data.contestId }, select: { name: true } }))?.name
-      : undefined,
-  })
-
-  revalidatePath("/admin/invitations")
-  return { success: true }
-}
-
-// ---------------------------------------------------------------------------
 // Participants
 // ---------------------------------------------------------------------------
 
@@ -383,9 +395,12 @@ export async function createManualUser(data: {
     revalidatePath("/admin/participants")
   }
 
-  revalidatePath("/admin/invitations")
   return { success: true, userId: user.id }
 }
+
+// ---------------------------------------------------------------------------
+// Scorer candidates
+// ---------------------------------------------------------------------------
 
 export async function addScorerCandidate(data: {
   contestId: string
@@ -404,13 +419,11 @@ export async function markScorerWinner(data: {
 }) {
   await requireAdmin()
 
-  // Allow multiple winners
   await db.scorerCandidate.update({
     where: { id: data.scorerCandidateId },
     data: { isWinner: true },
   })
 
-  // Recalculate bonus predictions
   await rebuildLeaderboard(data.contestId)
 
   revalidatePath("/admin")

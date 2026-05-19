@@ -1,19 +1,17 @@
 import { db } from "@/lib/db"
-import { InviteForm } from "@/components/admin/invite-form"
-import { formatDate, cn } from "@/lib/utils"
-import { Mail, CheckCircle, Clock, XCircle } from "lucide-react"
+import { ContestInviteLink } from "@/components/admin/contest-invite-link"
+import { Link2, Users } from "lucide-react"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = { title: "Invitations" }
 
 export default async function InvitationsPage() {
-  const invites = await db.invite.findMany({
-    orderBy: { sentAt: "desc" },
-  })
-
   const contests = await db.contest.findMany({
     where: { status: { in: ["DRAFT", "REGISTRATION", "ONGOING"] } },
-    select: { id: true, name: true },
+    include: {
+      _count: { select: { participants: true } },
+    },
+    orderBy: { createdAt: "desc" },
   })
 
   return (
@@ -21,68 +19,69 @@ export default async function InvitationsPage() {
       <div>
         <h1 className="text-xl font-black text-[var(--foreground)]">Invitations</h1>
         <p className="text-sm text-[var(--foreground-muted)]">
-          Inviter des joueurs par email
+          Partage le lien ou le QR code pour inviter des joueurs
         </p>
       </div>
 
-      <InviteForm contests={contests} />
-
-      {/* Invites list */}
-      <section>
-        <h2 className="text-xs font-bold text-[var(--foreground-muted)] uppercase tracking-wider mb-2">
-          Invitations envoyées ({invites.length})
-        </h2>
-        <div className="flex flex-col gap-2">
-          {invites.map((invite) => (
-            <div key={invite.id} className="surface-card p-3 flex items-center gap-3">
-              <StatusIcon status={invite.status} />
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold text-sm text-[var(--foreground)] truncate">
-                  {invite.firstName} {invite.lastName}
-                </div>
-                <div className="text-xs text-[var(--foreground-muted)] truncate">
-                  {invite.email}
-                </div>
-              </div>
-              <div className="text-right shrink-0">
-                <InviteStatusBadge status={invite.status} />
-                <div className="text-[10px] text-[var(--foreground-subtle)] mt-0.5">
-                  {formatDate(invite.sentAt, "d MMM")}
-                </div>
-              </div>
-            </div>
-          ))}
-          {invites.length === 0 && (
-            <div className="text-center py-8 text-[var(--foreground-muted)] text-sm">
-              Aucune invitation envoyée.
-            </div>
-          )}
+      {contests.length === 0 && (
+        <div className="text-center py-12 text-[var(--foreground-muted)] text-sm">
+          Aucun concours actif. Crée un concours pour générer un lien d&apos;invitation.
         </div>
-      </section>
+      )}
+
+      <div className="flex flex-col gap-4">
+        {contests.map((contest) => (
+          <section key={contest.id} className="surface-card p-4 flex flex-col gap-3">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <h2 className="font-bold text-[var(--foreground)]">{contest.name}</h2>
+                <div className="flex items-center gap-1.5 mt-0.5 text-xs text-[var(--foreground-muted)]">
+                  <Users size={12} />
+                  <span>{contest._count.participants} participant{contest._count.participants > 1 ? "s" : ""}</span>
+                </div>
+              </div>
+              <StatusBadge status={contest.status} />
+            </div>
+
+            <div>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wide mb-2">
+                <Link2 size={12} />
+                Lien d&apos;invitation
+              </div>
+              <ContestInviteLink
+                contestId={contest.id}
+                contestName={contest.name}
+                inviteToken={contest.inviteToken ?? null}
+              />
+            </div>
+          </section>
+        ))}
+      </div>
+
+      <div className="surface-card p-4 bg-[var(--accent-dim)] border-[var(--accent)]/20">
+        <h3 className="text-sm font-bold text-[var(--foreground)] mb-1">Comment ça marche ?</h3>
+        <ol className="text-xs text-[var(--foreground-muted)] flex flex-col gap-1 list-decimal list-inside">
+          <li>Copie le lien ou affiche le QR code ci-dessus</li>
+          <li>Partage-le avec les joueurs (WhatsApp, SMS, etc.)</li>
+          <li>Ils cliquent, créent leur compte ou se connectent, et rejoignent automatiquement le concours</li>
+          <li>Rends-toi dans <strong>Participants</strong> pour marquer les paiements</li>
+        </ol>
+      </div>
     </div>
   )
 }
 
-function StatusIcon({ status }: { status: string }) {
-  if (status === "ACCEPTED") return <CheckCircle size={18} className="text-[var(--success)] shrink-0" />
-  if (status === "EXPIRED") return <XCircle size={18} className="text-[var(--error)] shrink-0" />
-  return <Clock size={18} className="text-[var(--warning)] shrink-0" />
-}
-
-function InviteStatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    PENDING: "bg-[var(--warning-dim)] text-[var(--warning)]",
-    ACCEPTED: "bg-[var(--success-dim)] text-[var(--success)]",
-    EXPIRED: "bg-[var(--error-dim)] text-[var(--error)]",
+function StatusBadge({ status }: { status: string }) {
+  const config: Record<string, { label: string; cls: string }> = {
+    DRAFT: { label: "Brouillon", cls: "bg-[var(--surface-elevated)] text-[var(--foreground-muted)]" },
+    REGISTRATION: { label: "Inscriptions", cls: "bg-[var(--success-dim)] text-[var(--success)]" },
+    ONGOING: { label: "En cours", cls: "bg-[var(--accent-dim)] text-[var(--accent)]" },
+    FINISHED: { label: "Terminé", cls: "bg-[var(--error-dim)] text-[var(--error)]" },
   }
-  const labels: Record<string, string> = {
-    PENDING: "En attente",
-    ACCEPTED: "Acceptée",
-    EXPIRED: "Expirée",
-  }
+  const { label, cls } = config[status] ?? { label: status, cls: "" }
   return (
-    <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded-full", styles[status] ?? "")}>
-      {labels[status] ?? status}
+    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${cls}`}>
+      {label}
     </span>
   )
 }

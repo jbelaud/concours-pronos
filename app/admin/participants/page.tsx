@@ -1,7 +1,7 @@
-﻿import { db } from "@/lib/db"
+import { db } from "@/lib/db"
 import { ParticipantsList } from "@/components/admin/participants-list"
 import { AddUserForm } from "@/components/admin/add-user-form"
-import { Users } from "lucide-react"
+import { Users, Banknote } from "lucide-react"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = { title: "Participants" }
@@ -9,11 +9,12 @@ export const metadata: Metadata = { title: "Participants" }
 export default async function ParticipantsPage() {
   const contests = await db.contest.findMany({
     where: { status: { in: ["DRAFT", "REGISTRATION", "ONGOING"] } },
-    select: { id: true, name: true },
+    select: { id: true, name: true, buyIn: true, iban: true, paymentInstructions: true },
     orderBy: { createdAt: "desc" },
   })
 
-  const activeContestId = contests[0]?.id
+  const activeContest = contests[0]
+  const activeContestId = activeContest?.id
 
   const participants = activeContestId
     ? await db.contestParticipant.findMany({
@@ -24,6 +25,8 @@ export default async function ParticipantsPage() {
     : []
 
   const paidCount = participants.filter((p) => p.hasPaid).length
+  const unpaidCount = participants.length - paidCount
+  const totalCollected = activeContest ? paidCount * (activeContest.buyIn ?? 0) : 0
 
   return (
     <div className="flex flex-col gap-5">
@@ -31,8 +34,41 @@ export default async function ParticipantsPage() {
         <h1 className="text-xl font-black text-[var(--foreground)]">Participants</h1>
         <p className="text-sm text-[var(--foreground-muted)]">
           {participants.length} inscrits · {paidCount} ont payé
+          {activeContest?.buyIn && activeContest.buyIn > 0 ? ` · ${totalCollected}€ collectés` : ""}
         </p>
       </div>
+
+      {/* Récap paiements */}
+      {activeContest && activeContest.buyIn > 0 && (
+        <div className="grid grid-cols-3 gap-2">
+          <div className="surface-card p-3 text-center">
+            <div className="text-xl font-black text-[var(--success)]">{paidCount}</div>
+            <div className="text-[10px] text-[var(--foreground-subtle)] uppercase tracking-wide">Payés</div>
+          </div>
+          <div className="surface-card p-3 text-center">
+            <div className="text-xl font-black text-[var(--warning)]">{unpaidCount}</div>
+            <div className="text-[10px] text-[var(--foreground-subtle)] uppercase tracking-wide">En attente</div>
+          </div>
+          <div className="surface-card p-3 text-center">
+            <div className="text-xl font-black text-[var(--accent)]">{totalCollected}€</div>
+            <div className="text-[10px] text-[var(--foreground-subtle)] uppercase tracking-wide">Collectés</div>
+          </div>
+        </div>
+      )}
+
+      {/* IBAN du concours actif */}
+      {activeContest?.iban && (
+        <div className="surface-card p-3 flex flex-col gap-1.5">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wide">
+            <Banknote size={13} />
+            IBAN à communiquer
+          </div>
+          <div className="text-sm font-mono text-[var(--foreground)] break-all">{activeContest.iban}</div>
+          {activeContest.paymentInstructions && (
+            <div className="text-xs text-[var(--foreground-muted)] whitespace-pre-line">{activeContest.paymentInstructions}</div>
+          )}
+        </div>
+      )}
 
       <AddUserForm contests={contests} />
 

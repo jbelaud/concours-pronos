@@ -55,40 +55,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     async signIn({ user, account }) {
-      // For Google OAuth: only allow emails that were invited (admin bypasses check)
+      // Pour Google OAuth : l'admin est automatiquement promu
       if (account?.provider === "google" && user.email) {
         if (user.email === process.env.ADMIN_EMAIL) {
           await db.user.update({
             where: { email: user.email },
             data: { role: "ADMIN" },
           }).catch(() => {})
-          return true
-        }
-        const invite = await db.invite.findUnique({
-          where: { email: user.email },
-        })
-        if (!invite || invite.status === "EXPIRED") {
-          return false
-        }
-        // Auto-link invite as accepted if user signs in with Google
-        if (invite.status === "PENDING") {
-          await db.invite.update({
-            where: { email: user.email },
-            data: { status: "ACCEPTED", acceptedAt: new Date() },
-          })
-          // Ensure user has firstName/lastName from invite
-          if (user.id) {
-            const existing = await db.user.findUnique({ where: { id: user.id } })
-            if (!existing?.firstName) {
-              await db.user.update({
-                where: { id: user.id },
-                data: {
-                  firstName: invite.firstName,
-                  lastName: invite.lastName,
-                },
-              })
-            }
-          }
         }
       }
       return true

@@ -76,7 +76,7 @@ model VerificationToken {
 }
 
 // ---------------------------------------------------------------------------
-// Invitations
+// Invitations (lien partageable uniquement — plus d'email)
 // ---------------------------------------------------------------------------
 
 enum InviteStatus {
@@ -133,13 +133,16 @@ enum ContestStatus {
 }
 
 model Contest {
-  id        String        @id @default(cuid())
-  name      String
-  status    ContestStatus @default(DRAFT)
-  templateId String
-  buyIn     Float         @default(0)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id                  String        @id @default(cuid())
+  name                String
+  status              ContestStatus @default(DRAFT)
+  templateId          String
+  buyIn               Float         @default(0)
+  inviteToken         String?       @unique @default(cuid())
+  iban                String?
+  paymentInstructions String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   template         TournamentTemplate     @relation(fields: [templateId], references: [id])
   settings         ContestSettings?
@@ -196,10 +199,11 @@ model ContestSettings {
 // ---------------------------------------------------------------------------
 
 model Prizepool {
-  id        String   @id @default(cuid())
-  contestId String   @unique
-  itmCount  Int      @default(4)
-  payouts   Payout[]
+  id          String   @id @default(cuid())
+  contestId   String   @unique
+  totalAmount Float    @default(0)
+  itmCount    Int      @default(4)
+  payouts     Payout[]
 
   contest Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
 }

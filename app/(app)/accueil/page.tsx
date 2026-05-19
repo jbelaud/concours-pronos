@@ -2,8 +2,8 @@ import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { formatKickoff, isMatchLocked, PHASE_LABELS } from "@/lib/utils"
-import { ChevronRight, Trophy, Target, Clock } from "lucide-react"
+import { formatKickoff, PHASE_LABELS } from "@/lib/utils"
+import { ChevronRight, Trophy, Target, Clock, Banknote } from "lucide-react"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = { title: "Accueil" }
@@ -17,7 +17,7 @@ export default async function AccueilPage() {
     where: { status: { in: ["ONGOING", "REGISTRATION", "DRAFT"] } },
     include: {
       settings: true,
-      prizepool: { include: { payouts: true } },
+      prizepool: { include: { payouts: { orderBy: { position: "asc" } } } },
       _count: { select: { participants: true } },
     },
     orderBy: { createdAt: "desc" },
@@ -66,6 +66,12 @@ export default async function AccueilPage() {
         userId: session.user.id,
       },
     },
+  })
+
+  // Vérifier si l'utilisateur a payé
+  const participation = await db.contestParticipant.findUnique({
+    where: { contestId_userId: { contestId: contest.id, userId: session.user.id } },
+    select: { hasPaid: true },
   })
 
   // Pending predictions count
@@ -134,6 +140,54 @@ export default async function AccueilPage() {
           </div>
           <ChevronRight size={18} className="text-[var(--accent)]" />
         </Link>
+      )}
+
+      {/* Bloc paiement IBAN si buy-in > 0 et pas encore payé */}
+      {contest.buyIn > 0 && !participation?.hasPaid && contest.iban && (
+        <div className="flex flex-col gap-2 p-4 rounded-xl bg-[var(--warning-dim)] border border-[var(--warning)]/30">
+          <div className="flex items-center gap-2">
+            <Banknote size={18} className="text-[var(--warning)] shrink-0" />
+            <div>
+              <div className="font-semibold text-sm text-[var(--foreground)]">
+                Paiement en attente ({contest.buyIn}€)
+              </div>
+              <div className="text-xs text-[var(--foreground-muted)]">
+                Effectue ton virement pour valider ta participation
+              </div>
+            </div>
+          </div>
+          <div className="text-xs font-mono text-[var(--foreground)] bg-[var(--surface-elevated)] px-3 py-2 rounded-lg break-all">
+            {contest.iban}
+          </div>
+          {contest.paymentInstructions && (
+            <div className="text-xs text-[var(--foreground-muted)] whitespace-pre-line">
+              {contest.paymentInstructions}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Prizepool si défini */}
+      {contest.prizepool && contest.prizepool.payouts.length > 0 && (
+        <section>
+          <SectionHeader title="Prizepool" icon={<Trophy size={16} />} />
+          <div className="surface-card p-3 flex flex-col gap-1.5">
+            {contest.prizepool.totalAmount > 0 && (
+              <div className="flex items-center justify-between text-sm mb-1">
+                <span className="text-[var(--foreground-muted)]">Total</span>
+                <span className="font-black text-[var(--accent)]">{contest.prizepool.totalAmount}€</span>
+              </div>
+            )}
+            {contest.prizepool.payouts.map((p) => (
+              <div key={p.position} className="flex items-center justify-between text-sm">
+                <span className="text-[var(--foreground-muted)]">
+                  {p.position === 1 ? "🥇 1er" : p.position === 2 ? "🥈 2e" : p.position === 3 ? "🥉 3e" : `${p.position}e`}
+                </span>
+                <span className="font-semibold text-[var(--foreground)]">{p.amount}€</span>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Upcoming matches */}
