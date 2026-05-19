@@ -71,6 +71,20 @@ export default async function PronosticsPage() {
     },
   })
 
+  // Pronostics bonus communautaires (visibles seulement après verrouillage tournoi)
+  const communityBonusPredictions = tournamentLocked
+    ? await db.tournamentPrediction.findMany({
+        where: { contestId: contest.id },
+        include: {
+          user: { select: { id: true, firstName: true, lastName: true, avatarSeed: true } },
+          winner: true,
+          bestAttack: true,
+          bestDefense: true,
+          groupPredictions: true,
+        },
+      })
+    : []
+
   // Équipes + groupes + buteurs
   const [teams, groups, scorerCandidates] = await Promise.all([
     db.team.findMany({ where: { contestId: contest.id }, orderBy: { name: "asc" } }),
@@ -98,6 +112,7 @@ export default async function PronosticsPage() {
       contest={{ id: contest.id, name: contest.name, status: contest.status }}
       matches={matchesWithPrediction}
       communityPredictions={communityPredictions}
+      communityBonusPredictions={communityBonusPredictions}
       teams={teams}
       groups={groups}
       scorerCandidates={scorerCandidates}

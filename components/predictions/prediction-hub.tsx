@@ -35,10 +35,22 @@ interface CommunityPrediction {
   user: { id: string; firstName: string; lastName: string; avatarSeed: string }
 }
 
+export interface CommunityBonusPrediction {
+  id: string
+  userId: string
+  topScorerFreeText: string | null
+  winner: { id: string; name: string; flagEmoji: string | null } | null
+  bestAttack: { id: string; name: string; flagEmoji: string | null } | null
+  bestDefense: { id: string; name: string; flagEmoji: string | null } | null
+  groupPredictions: Array<{ groupLetter: string; firstTeamCode: string; secondTeamCode: string }>
+  user: { id: string; firstName: string; lastName: string; avatarSeed: string }
+}
+
 interface Props {
   contest: { id: string; name: string; status: string }
   matches: MatchWithPrediction[]
   communityPredictions: CommunityPrediction[]
+  communityBonusPredictions: CommunityBonusPrediction[]
   teams: Team[]
   groups: GroupWithTeams[]
   scorerCandidates: ScorerCandidate[]
@@ -154,6 +166,8 @@ export function PredictionHub(props: Props) {
               <CommunityTab
                 matches={props.matches}
                 communityPredictions={props.communityPredictions}
+                communityBonusPredictions={props.communityBonusPredictions}
+                groups={props.groups}
                 userId={props.userId}
               />
             )}
