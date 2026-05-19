@@ -5,6 +5,7 @@ import { db } from "@/lib/db"
 import { loadTournamentTemplate } from "@/lib/tournament"
 import { recalculateMatchPredictions, rebuildLeaderboard, takeRankingSnapshot } from "@/lib/ranking"
 import { revalidatePath } from "next/cache"
+import { computeGroupStandings, getBestThirdPlaceTeams, resolveRoundOf32, type MatchResult, type GroupStandings } from "@/lib/wc2026-standings"
 
 async function requireAdmin() {
   const session = await auth()
@@ -295,7 +296,7 @@ export async function saveMatchResult(data: {
 
   const match = await db.match.findUniqueOrThrow({
     where: { id: data.matchId },
-    select: { contestId: true, status: true },
+    select: { contestId: true, status: true, phase: true },
   })
 
   await db.match.update({
@@ -313,10 +314,93 @@ export async function saveMatchResult(data: {
     await takeRankingSnapshot(match.contestId, data.matchday)
   }
 
+  // Auto-update Round of 32 teams based on new standings
+  if (match.phase === "GROUP") {
+    await resolveRoundOf32Teams(match.contestId)
+  }
+
   revalidatePath("/admin/resultats")
+  revalidatePath("/admin/tableau")
   revalidatePath("/classement")
   revalidatePath("/pronostics")
   return { success: true as const }
+}
+
+// ---------------------------------------------------------------------------
+// Round of 32 auto-resolution from group standings
+// ---------------------------------------------------------------------------
+
+export async function resolveRoundOf32Teams(contestId: string) {
+  // Fetch all group matches with results
+  const groupMatches = await db.match.findMany({
+    where: { contestId, phase: "GROUP", homeTeamId: { not: null } },
+    include: { homeTeam: true, awayTeam: true },
+  })
+
+  // Fetch all teams with their group info
+  const teams = await db.team.findMany({ where: { contestId } })
+  const teamMeta: Record<string, { name: string; flagEmoji: string | null }> = {}
+  for (const t of teams) teamMeta[t.code] = { name: t.name, flagEmoji: t.flagEmoji }
+
+  // Fetch group structure
+  const groups = await db.group.findMany({
+    where: { contestId },
+    include: { teams: { include: { team: true } } },
+    orderBy: { letter: "asc" },
+  })
+
+  // Build match results for engine
+  const results: MatchResult[] = groupMatches
+    .filter((m) => m.homeScore !== null && m.awayScore !== null && m.homeTeam && m.awayTeam)
+    .map((m) => ({
+      homeTeamCode: m.homeTeam!.code,
+      awayTeamCode: m.awayTeam!.code,
+      homeScore: m.homeScore!,
+      awayScore: m.awayScore!,
+      groupLetter: m.groupLetter ?? "",
+    }))
+
+  // Compute standings per group
+  const allGroupStandings: GroupStandings[] = groups.map((group) => {
+    const teamCodes = group.teams.map((gt) => gt.team.code)
+    return {
+      letter: group.letter,
+      teams: computeGroupStandings(group.letter, teamCodes, teamMeta, results),
+    }
+  })
+
+  const bestThirds = getBestThirdPlaceTeams(allGroupStandings)
+  const matchups = resolveRoundOf32(allGroupStandings, bestThirds)
+
+  // Build code→id map
+  const teamIdByCode: Record<string, string> = {}
+  for (const t of teams) teamIdByCode[t.code] = t.id
+
+  // Fetch existing ROUND_OF_32 matches
+  const roundOf32Matches = await db.match.findMany({
+    where: { contestId, phase: "ROUND_OF_32" },
+    select: { id: true, matchNumber: true },
+  })
+  const matchByNumber: Record<number, string> = {}
+  for (const m of roundOf32Matches) matchByNumber[m.matchNumber] = m.id
+
+  // Update each match with resolved teams
+  await Promise.all(
+    matchups.map(({ matchNumber, homeTeamCode, awayTeamCode }) => {
+      const matchId = matchByNumber[matchNumber]
+      if (!matchId) return Promise.resolve()
+      return db.match.update({
+        where: { id: matchId },
+        data: {
+          homeTeamId: homeTeamCode ? (teamIdByCode[homeTeamCode] ?? null) : null,
+          awayTeamId: awayTeamCode ? (teamIdByCode[awayTeamCode] ?? null) : null,
+        },
+      })
+    })
+  )
+
+  revalidatePath("/admin/tableau")
+  revalidatePath("/pronostics")
 }
 
 // ---------------------------------------------------------------------------
