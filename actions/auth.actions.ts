@@ -29,8 +29,84 @@ export async function loginWithCredentials(formData: FormData) {
   redirect("/accueil")
 }
 
+// Version sans redirect — pour les flux embarqués (ex: rejoindre un concours)
+export async function loginWithCredentialsNoRedirect(data: { email: string; password: string }) {
+  if (!data.email || !data.password) {
+    return { error: "Email et mot de passe requis." }
+  }
+
+  try {
+    await signIn("credentials", { email: data.email, password: data.password, redirect: false })
+  } catch (error) {
+    if (error instanceof AuthError) {
+      if (error.type === "CredentialsSignin") {
+        return { error: "Email ou mot de passe incorrect." }
+      }
+      return { error: "Erreur d'authentification." }
+    }
+    throw error
+  }
+
+  return { success: true }
+}
+
 export async function loginWithGoogle() {
   await signIn("google", { redirectTo: "/accueil" })
+}
+
+export async function registerAndJoinContest(formData: {
+  inviteToken: string
+  firstName: string
+  lastName: string
+  email: string
+  password: string
+}): Promise<{ success: true; email: string } | { error: string }> {
+  if (formData.password.length < 8) {
+    return { error: "Le mot de passe doit contenir au moins 8 caractères." }
+  }
+
+  const contest = await db.contest.findUnique({
+    where: { inviteToken: formData.inviteToken },
+    select: { id: true, status: true },
+  })
+
+  if (!contest) {
+    return { error: "Lien d'invitation invalide." }
+  }
+
+  const existing = await db.user.findUnique({ where: { email: formData.email } })
+  if (existing) {
+    return { error: "Un compte avec cet email existe déjà. Connecte-toi." }
+  }
+
+  const hashedPassword = await bcrypt.hash(formData.password, 12)
+
+  const user = await db.user.create({
+    data: {
+      email: formData.email,
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      name: `${formData.firstName} ${formData.lastName}`,
+      password: hashedPassword,
+      avatarSeed: formData.email,
+      role: "USER",
+    },
+  })
+
+  // Auto-rejoindre le concours
+  await db.contestParticipant.upsert({
+    where: { contestId_userId: { contestId: contest.id, userId: user.id } },
+    create: { contestId: contest.id, userId: user.id },
+    update: {},
+  })
+
+  await db.leaderboardEntry.upsert({
+    where: { contestId_userId: { contestId: contest.id, userId: user.id } },
+    create: { contestId: contest.id, userId: user.id, rank: 0, totalPoints: 0 },
+    update: {},
+  })
+
+  return { success: true, email: user.email }
 }
 
 export async function registerFromInvitation(formData: {
