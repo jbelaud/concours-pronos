@@ -88,129 +88,100 @@ export function MatchCard({
       layout
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      className={cn(
-        "surface-card p-4 select-none transition-colors",
-        cardBg
-      )}
+      className={cn("surface-card p-3 select-none transition-colors", cardBg)}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-xs text-[var(--foreground-muted)]">
+      {/* Header : phase + heure + statut sauvegarde */}
+      <div className="flex items-center justify-between mb-2.5">
+        <span className="text-[11px] text-[var(--foreground-muted)]">
           {match.groupLetter ? `Groupe ${match.groupLetter} · ` : ""}
-          {formatKickoff(match.kickoff, "EEE d MMM")}
-          {" · "}
-          {formatTime(match.kickoff)}
+          {formatKickoff(match.kickoff, "EEE d MMM")} · {formatTime(match.kickoff)}
         </span>
-
         <div className="flex items-center gap-1">
-          {isPending && (
-            <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] animate-pulse" />
-          )}
-          {saved && !isPending && !locked && (
-            <CheckCircle size={14} className="text-[var(--success)]" />
-          )}
-          {locked && <Lock size={13} className="text-[var(--foreground-subtle)]" />}
+          {isPending && <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] animate-pulse" />}
+          {saved && !isPending && !locked && <CheckCircle size={13} className="text-[var(--success)]" />}
+          {locked && <Lock size={12} className="text-[var(--foreground-subtle)]" />}
         </div>
       </div>
 
-      {/* Teams & Scores */}
+      {/* Corps : équipe — stepper — séparateur — stepper — équipe */}
       <div className="flex items-center gap-2">
-        {/* Home team */}
-        <div className="flex-1 flex flex-col items-center gap-1">
-          <span className="text-2xl">{match.homeTeam?.flagEmoji ?? "🏳️"}</span>
-          <span className="text-xs font-semibold text-[var(--foreground)] text-center leading-tight max-w-[72px] truncate">
+
+        {/* Équipe domicile */}
+        <div className="flex-1 flex flex-col items-center gap-1 min-w-0">
+          <span className="text-2xl leading-none">{match.homeTeam?.flagEmoji ?? "🏳️"}</span>
+          <span className="text-[11px] font-semibold text-[var(--foreground)] text-center leading-tight w-full truncate px-1">
             {match.homeTeam?.name ?? "À définir"}
           </span>
         </div>
 
-        {/* Score steppers / result */}
-        <div className="flex items-center gap-1">
-          {finished && match.homeScore !== null ? (
-            <div className="flex items-center gap-2">
-              <div className="flex flex-col items-center">
-                <span className="text-3xl font-black text-[var(--foreground)]">
-                  {match.homeScore}
-                </span>
-                <span className="text-xs text-[var(--foreground-muted)]">
-                  {homeScore}
-                </span>
-              </div>
-              <span className="text-[var(--foreground-muted)] text-xl font-bold">-</span>
-              <div className="flex flex-col items-center">
-                <span className="text-3xl font-black text-[var(--foreground)]">
-                  {match.awayScore}
-                </span>
-                <span className="text-xs text-[var(--foreground-muted)]">
-                  {awayScore}
-                </span>
-              </div>
+        {/* Zone scores */}
+        {finished && match.homeScore !== null ? (
+          /* Match terminé : score réel + pronostic en dessous */
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="flex flex-col items-center">
+              <span className="text-3xl font-black text-[var(--foreground)] leading-none">{match.homeScore}</span>
+              <span className="text-[10px] text-[var(--foreground-muted)] mt-0.5">({homeScore})</span>
             </div>
-          ) : (
-            <>
-              <ScoreStepper
-                value={homeScore}
-                onChange={(v) => {
-                  setHomeScore(v)
-                  setSaved(false)
-                  handleScoreChange(v, awayScore)
-                }}
-                disabled={locked}
-              />
-              <span className="text-[var(--foreground-muted)] font-bold text-lg mx-1">-</span>
-              <ScoreStepper
-                value={awayScore}
-                onChange={(v) => {
-                  setAwayScore(v)
-                  setSaved(false)
-                  handleScoreChange(homeScore, v)
-                }}
-                disabled={locked}
-              />
-            </>
-          )}
-        </div>
+            <span className="text-[var(--foreground-muted)] text-xl font-bold">–</span>
+            <div className="flex flex-col items-center">
+              <span className="text-3xl font-black text-[var(--foreground)] leading-none">{match.awayScore}</span>
+              <span className="text-[10px] text-[var(--foreground-muted)] mt-0.5">({awayScore})</span>
+            </div>
+          </div>
+        ) : (
+          /* Match à venir : steppers verticaux */
+          <div className="flex items-center gap-1.5 shrink-0">
+            <ScoreStepper
+              value={homeScore}
+              onChange={(v) => {
+                setHomeScore(v)
+                setSaved(false)
+                handleScoreChange(v, awayScore)
+              }}
+              disabled={locked}
+            />
+            <span className="text-[var(--foreground-subtle)] font-bold text-base px-0.5">–</span>
+            <ScoreStepper
+              value={awayScore}
+              onChange={(v) => {
+                setAwayScore(v)
+                setSaved(false)
+                handleScoreChange(homeScore, v)
+              }}
+              disabled={locked}
+            />
+          </div>
+        )}
 
-        {/* Away team */}
-        <div className="flex-1 flex flex-col items-center gap-1">
-          <span className="text-2xl">{match.awayTeam?.flagEmoji ?? "🏳️"}</span>
-          <span className="text-xs font-semibold text-[var(--foreground)] text-center leading-tight max-w-[72px] truncate">
+        {/* Équipe extérieur */}
+        <div className="flex-1 flex flex-col items-center gap-1 min-w-0">
+          <span className="text-2xl leading-none">{match.awayTeam?.flagEmoji ?? "🏳️"}</span>
+          <span className="text-[11px] font-semibold text-[var(--foreground)] text-center leading-tight w-full truncate px-1">
             {match.awayTeam?.name ?? "À définir"}
           </span>
         </div>
+
       </div>
 
-      {/* Points row (when finished) */}
-      {finished && predictionStatus && (
-        <div className={cn("flex items-center justify-center gap-1 mt-2 text-xs font-semibold", statusColor)}>
+      {/* Résultat du pronostic */}
+      {finished && predictionStatus && predictionStatus !== "PENDING" && (
+        <div className={cn("flex items-center justify-center gap-1 mt-2 text-[11px] font-semibold", statusColor)}>
           {predictionStatus === "EXACT_SCORE" && (
-            <>
-              <CheckCircle size={12} />
-              Score exact · +{match.prediction?.points ?? 0} pts
-            </>
+            <><CheckCircle size={11} /> Score exact · +{match.prediction?.points ?? 0} pts</>
           )}
           {predictionStatus === "CORRECT_RESULT" && (
-            <>
-              <CheckCircle size={12} />
-              Résultat correct · +{match.prediction?.points ?? 0} pts
-            </>
+            <><CheckCircle size={11} /> Résultat correct · +{match.prediction?.points ?? 0} pts</>
           )}
           {predictionStatus === "WRONG" && (
-            <>
-              <AlertCircle size={12} />
-              Raté · 0 pt
-            </>
-          )}
-          {predictionStatus === "PENDING" && (
-            <span className="text-[var(--foreground-muted)]">En attente du résultat</span>
+            <><AlertCircle size={11} /> Raté · 0 pt</>
           )}
         </div>
       )}
-
-      {/* Locked without result */}
+      {finished && predictionStatus === "PENDING" && (
+        <div className="text-center mt-2 text-[11px] text-[var(--foreground-subtle)]">En attente du résultat</div>
+      )}
       {locked && !finished && (
-        <div className="text-center mt-2 text-xs text-[var(--foreground-subtle)]">
-          Match en cours ou terminé
-        </div>
+        <div className="text-center mt-2 text-[11px] text-[var(--foreground-subtle)]">Match en cours ou terminé</div>
       )}
     </motion.div>
   )
