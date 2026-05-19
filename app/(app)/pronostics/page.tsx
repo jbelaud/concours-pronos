@@ -1,8 +1,8 @@
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { redirect } from "next/navigation"
-import { MatchCard } from "@/components/predictions/match-card"
-import { PHASE_LABELS, PHASE_ORDER } from "@/lib/utils"
+import { isMatchLocked } from "@/lib/utils"
+import { PredictionHub } from "@/components/predictions/prediction-hub"
 import type { Metadata } from "next"
 import type { MatchWithPrediction } from "@/types"
 
@@ -11,82 +11,103 @@ export const metadata: Metadata = { title: "Pronostics" }
 export default async function PronosticsPage() {
   const session = await auth()
   if (!session?.user) redirect("/login")
+  const userId = session.user.id
 
   const contest = await db.contest.findFirst({
     where: { status: { in: ["ONGOING", "REGISTRATION", "DRAFT"] } },
     orderBy: { createdAt: "desc" },
+    include: { settings: true },
   })
 
   if (!contest) {
     return (
-      <div className="text-center py-20 text-[var(--foreground-muted)]">
-        <div className="text-4xl mb-3">⚽</div>
-        <p>Aucun concours actif pour le moment.</p>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-4">
+        <div className="text-5xl">⚽</div>
+        <p className="text-[var(--foreground-muted)]">Aucun concours actif pour le moment.</p>
       </div>
     )
   }
 
+  // Matchs + mes pronostics
   const matches = await db.match.findMany({
-    where: {
-      contestId: contest.id,
-      homeTeamId: { not: null },
-    },
-    orderBy: [{ kickoff: "asc" }],
+    where: { contestId: contest.id, homeTeamId: { not: null } },
+    orderBy: { kickoff: "asc" },
     include: {
       homeTeam: true,
       awayTeam: true,
-      predictions: {
-        where: { userId: session.user.id },
-        take: 1,
-      },
+      predictions: { where: { userId }, take: 1 },
     },
   })
 
   const matchesWithPrediction: MatchWithPrediction[] = matches.map((m) => ({
     ...m,
     prediction: m.predictions[0] ?? null,
-    isLocked: new Date() >= m.kickoff,
+    isLocked: isMatchLocked(m.kickoff),
   }))
 
-  // Group by phase
-  const byPhase = matchesWithPrediction.reduce(
-    (acc, match) => {
-      if (!acc[match.phase]) acc[match.phase] = []
-      acc[match.phase].push(match)
-      return acc
-    },
-    {} as Record<string, MatchWithPrediction[]>
-  )
+  // Pronostics communautaires (visibles seulement après coup d'envoi)
+  const lockedMatchIds = matchesWithPrediction.filter((m) => m.isLocked).map((m) => m.id)
+  const communityPredictions = lockedMatchIds.length > 0
+    ? await db.prediction.findMany({
+        where: { matchId: { in: lockedMatchIds } },
+        include: {
+          user: { select: { id: true, firstName: true, lastName: true, avatarSeed: true } },
+        },
+      })
+    : []
 
-  const sortedPhases = Object.keys(byPhase).sort(
-    (a, b) => (PHASE_ORDER[a] ?? 99) - (PHASE_ORDER[b] ?? 99)
-  )
+  // Premier match (deadline tournoi)
+  const firstMatch = matches[0] ?? null
+  const tournamentLocked = firstMatch ? isMatchLocked(firstMatch.kickoff) : false
+
+  // Pronostic tournoi (bonus)
+  const myBonusPred = await db.tournamentPrediction.findUnique({
+    where: { userId_contestId: { userId, contestId: contest.id } },
+    include: {
+      groupPredictions: true,
+      winner: true,
+      bestAttack: true,
+      bestDefense: true,
+    },
+  })
+
+  // Équipes + groupes + buteurs
+  const [teams, groups, scorerCandidates] = await Promise.all([
+    db.team.findMany({ where: { contestId: contest.id }, orderBy: { name: "asc" } }),
+    db.group.findMany({
+      where: { contestId: contest.id },
+      orderBy: { letter: "asc" },
+      include: { teams: { include: { team: true } } },
+    }),
+    db.scorerCandidate.findMany({ where: { contestId: contest.id }, orderBy: { name: "asc" } }),
+  ])
+
+  // Comptage progression
+  const pendingMatchCount = matchesWithPrediction.filter((m) => !m.isLocked && !m.prediction).length
+  const completedGroupPreds = myBonusPred?.groupPredictions.length ?? 0
+  const bonusCompleted =
+    (myBonusPred?.winnerId ? 1 : 0) +
+    (myBonusPred?.topScorerFreeText ? 1 : 0) +
+    (myBonusPred?.bestAttackId ? 1 : 0) +
+    (myBonusPred?.bestDefenseId ? 1 : 0) +
+    (completedGroupPreds > 0 ? 1 : 0)
+  const bonusTotal = 5
 
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-black text-[var(--foreground)]">Pronostics</h1>
-        <p className="text-sm text-[var(--foreground-muted)]">{contest.name}</p>
-      </div>
-
-      {sortedPhases.map((phase) => (
-        <section key={phase}>
-          <h2 className="text-sm font-bold text-[var(--foreground-muted)] uppercase tracking-wider mb-3 px-1">
-            {PHASE_LABELS[phase] ?? phase}
-          </h2>
-          <div className="flex flex-col gap-2">
-            {byPhase[phase].map((match) => (
-              <MatchCard
-                key={match.id}
-                match={match}
-                contestId={contest.id}
-                initialHomeScore={match.prediction?.homeScore}
-                initialAwayScore={match.prediction?.awayScore}
-              />
-            ))}
-          </div>
-        </section>
-      ))}
-    </div>
+    <PredictionHub
+      contest={{ id: contest.id, name: contest.name, status: contest.status }}
+      matches={matchesWithPrediction}
+      communityPredictions={communityPredictions}
+      teams={teams}
+      groups={groups}
+      scorerCandidates={scorerCandidates}
+      myBonusPred={myBonusPred}
+      firstMatchKickoff={firstMatch?.kickoff ?? null}
+      tournamentLocked={tournamentLocked}
+      pendingMatchCount={pendingMatchCount}
+      bonusCompleted={bonusCompleted}
+      bonusTotal={bonusTotal}
+      userId={userId}
+    />
   )
 }
