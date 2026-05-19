@@ -4,33 +4,58 @@ import { useState } from "react"
 import { cn } from "@/lib/utils"
 import type { GroupStandings, TeamStanding, ResolvedMatchup } from "@/lib/wc2026-standings"
 
+interface KnockoutMatch {
+  matchNumber: number
+  phase: string
+  knockoutLabel: string | null
+  homeTeam: { name: string; flagEmoji: string | null } | null
+  awayTeam: { name: string; flagEmoji: string | null } | null
+  homeScore: number | null
+  awayScore: number | null
+  status: string
+}
+
 interface Props {
   allGroupStandings: GroupStandings[]
   bestThirds: TeamStanding[]
   roundOf32Matchups: ResolvedMatchup[]
+  knockoutMatches: KnockoutMatch[]
 }
 
 type Section = "groups" | "thirds" | "attack" | "defense" | "bracket"
 
-export function CompetitionTab({ allGroupStandings, bestThirds, roundOf32Matchups }: Props) {
+const PHASE_LABEL: Record<string, string> = {
+  ROUND_OF_16: "1/8 de finale",
+  QUARTER_FINAL: "Quart de finale",
+  SEMI_FINAL: "Demi-finale",
+  THIRD_PLACE: "Match pour la 3e place",
+  FINAL: "Finale",
+}
+
+export function CompetitionTab({ allGroupStandings, bestThirds, roundOf32Matchups, knockoutMatches }: Props) {
   const [activeSection, setActiveSection] = useState<Section>("groups")
 
   const resolvedCount = roundOf32Matchups.filter((m) => m.homeTeamCode && m.awayTeamCode).length
-
-  // Flatten all teams from standings for attack/defense rankings
   const allTeams = allGroupStandings.flatMap((g) => g.teams)
   const teamsWithMatches = allTeams.filter((t) => t.played > 0)
 
+  // Group knockout matches by phase
+  const knockoutByPhase = knockoutMatches.reduce<Record<string, KnockoutMatch[]>>((acc, m) => {
+    if (!acc[m.phase]) acc[m.phase] = []
+    acc[m.phase].push(m)
+    return acc
+  }, {})
+  const hasKnockoutData = knockoutMatches.some((m) => m.homeTeam || m.awayTeam)
+
   return (
     <div className="flex flex-col gap-3 pb-6">
-      {/* Section pills */}
       <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
         <SectionPill active={activeSection === "groups"} onClick={() => setActiveSection("groups")}>🏟️ Groupes</SectionPill>
         <SectionPill active={activeSection === "thirds"} onClick={() => setActiveSection("thirds")}>🥉 3es</SectionPill>
         <SectionPill active={activeSection === "attack"} onClick={() => setActiveSection("attack")}>⚔️ Attaque</SectionPill>
         <SectionPill active={activeSection === "defense"} onClick={() => setActiveSection("defense")}>🛡️ Défense</SectionPill>
         <SectionPill active={activeSection === "bracket"} onClick={() => setActiveSection("bracket")}>
-          📊 1/16 {resolvedCount > 0 && <span className="opacity-70">({resolvedCount}/16)</span>}
+          📊 Bracket {resolvedCount > 0 && <span className="opacity-70">({resolvedCount}/16)</span>}
         </SectionPill>
       </div>
 
@@ -38,7 +63,13 @@ export function CompetitionTab({ allGroupStandings, bestThirds, roundOf32Matchup
       {activeSection === "thirds" && <ThirdsSection allGroupStandings={allGroupStandings} bestThirds={bestThirds} />}
       {activeSection === "attack" && <AttackRanking teams={teamsWithMatches} />}
       {activeSection === "defense" && <DefenseRanking teams={teamsWithMatches} />}
-      {activeSection === "bracket" && <BracketSection matchups={roundOf32Matchups} />}
+      {activeSection === "bracket" && (
+        <BracketSection
+          roundOf32Matchups={roundOf32Matchups}
+          knockoutByPhase={knockoutByPhase}
+          hasKnockoutData={hasKnockoutData}
+        />
+      )}
     </div>
   )
 }
@@ -324,42 +355,112 @@ function EmptyState({ icon, message }: { icon: string; message: string }) {
 
 // ── Bracket section ───────────────────────────────────────────────────────────
 
-function BracketSection({ matchups }: { matchups: ResolvedMatchup[] }) {
+function BracketSection({
+  roundOf32Matchups,
+  knockoutByPhase,
+  hasKnockoutData,
+}: {
+  roundOf32Matchups: ResolvedMatchup[]
+  knockoutByPhase: Record<string, KnockoutMatch[]>
+  hasKnockoutData: boolean
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      {/* 1/16 */}
+      <PhaseCard title="1/16 de finale" subtitle="Mis à jour en temps réel">
+        {roundOf32Matchups.map(({ matchNumber, homeTeamCode, awayTeamCode, homeLabel, awayLabel }) => {
+          const isResolved = !!homeTeamCode && !!awayTeamCode
+          return (
+            <BracketRow
+              key={matchNumber}
+              matchNumber={matchNumber}
+              homeDisplay={homeLabel}
+              awayDisplay={awayLabel}
+              isResolved={isResolved}
+            />
+          )
+        })}
+      </PhaseCard>
+
+      {/* 1/8 and beyond — only shown when teams are being resolved */}
+      {["ROUND_OF_16", "QUARTER_FINAL", "SEMI_FINAL", "THIRD_PLACE", "FINAL"].map((phase) => {
+        const phaseMatches = knockoutByPhase[phase]
+        if (!phaseMatches?.length) return null
+        const anyResolved = phaseMatches.some((m) => m.homeTeam || m.awayTeam)
+
+        return (
+          <PhaseCard key={phase} title={PHASE_LABEL[phase] ?? phase}>
+            {phaseMatches.map((m) => {
+              const isResolved = !!m.homeTeam && !!m.awayTeam
+              const isFinished = m.status === "FINISHED"
+              const homeDisplay = m.homeTeam
+                ? `${m.homeTeam.flagEmoji ?? ""} ${m.homeTeam.name}`
+                : m.knockoutLabel?.split(" vs ")[0]?.replace(/^.*?-\s*/, "") ?? "?"
+              const awayDisplay = m.awayTeam
+                ? `${m.awayTeam.flagEmoji ?? ""} ${m.awayTeam.name}`
+                : m.knockoutLabel?.split(" vs ")[1] ?? "?"
+
+              return (
+                <BracketRow
+                  key={m.matchNumber}
+                  matchNumber={m.matchNumber}
+                  homeDisplay={homeDisplay}
+                  awayDisplay={awayDisplay}
+                  isResolved={isResolved}
+                  score={isFinished && m.homeScore !== null && m.awayScore !== null
+                    ? `${m.homeScore} – ${m.awayScore}`
+                    : undefined}
+                />
+              )
+            })}
+          </PhaseCard>
+        )
+      })}
+    </div>
+  )
+}
+
+function PhaseCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
     <div className="surface-card overflow-hidden">
       <div className="px-3 py-2 border-b border-[var(--border)] flex items-center justify-between">
-        <span className="text-xs font-bold text-[var(--foreground)]">1/16 de finale</span>
-        <span className="text-[10px] text-[var(--foreground-subtle)]">Mis à jour en temps réel</span>
+        <span className="text-xs font-bold text-[var(--foreground)]">{title}</span>
+        {subtitle && <span className="text-[10px] text-[var(--foreground-subtle)]">{subtitle}</span>}
       </div>
-      <div className="flex flex-col">
-        {matchups.map(({ matchNumber, homeTeamCode, awayTeamCode, homeLabel, awayLabel }) => {
-          const isResolved = !!homeTeamCode && !!awayTeamCode
-          return (
-            <div
-              key={matchNumber}
-              className={cn(
-                "flex items-center gap-2 px-3 py-2.5 border-b border-[var(--border)] last:border-0",
-                isResolved ? "bg-[var(--accent-dim)]" : ""
-              )}
-            >
-              <span className="text-[9px] text-[var(--foreground-subtle)] w-7 shrink-0 font-mono">M{matchNumber}</span>
-              <span className={cn(
-                "flex-1 text-xs truncate",
-                isResolved ? "text-[var(--foreground)] font-semibold" : "text-[var(--foreground-muted)] italic"
-              )}>
-                {homeLabel}
-              </span>
-              <span className="text-[10px] text-[var(--foreground-subtle)] shrink-0">vs</span>
-              <span className={cn(
-                "flex-1 text-xs truncate text-right",
-                isResolved ? "text-[var(--foreground)] font-semibold" : "text-[var(--foreground-muted)] italic"
-              )}>
-                {awayLabel}
-              </span>
-            </div>
-          )
-        })}
-      </div>
+      <div className="flex flex-col">{children}</div>
+    </div>
+  )
+}
+
+function BracketRow({
+  matchNumber,
+  homeDisplay,
+  awayDisplay,
+  isResolved,
+  score,
+}: {
+  matchNumber: number
+  homeDisplay: string
+  awayDisplay: string
+  isResolved: boolean
+  score?: string
+}) {
+  return (
+    <div className={cn(
+      "flex items-center gap-2 px-3 py-2.5 border-b border-[var(--border)] last:border-0",
+      isResolved ? "bg-[var(--accent-dim)]" : ""
+    )}>
+      <span className="text-[9px] text-[var(--foreground-subtle)] w-7 shrink-0 font-mono">M{matchNumber}</span>
+      <span className={cn("flex-1 text-xs truncate", isResolved ? "text-[var(--foreground)] font-semibold" : "text-[var(--foreground-muted)] italic")}>
+        {homeDisplay}
+      </span>
+      {score
+        ? <span className="text-xs font-black text-[var(--foreground)] shrink-0 tabular-nums">{score}</span>
+        : <span className="text-[10px] text-[var(--foreground-subtle)] shrink-0">vs</span>
+      }
+      <span className={cn("flex-1 text-xs truncate text-right", isResolved ? "text-[var(--foreground)] font-semibold" : "text-[var(--foreground-muted)] italic")}>
+        {awayDisplay}
+      </span>
     </div>
   )
 }

@@ -25,7 +25,7 @@ export default async function CompetitionPage() {
     )
   }
 
-  const [groups, teams, groupMatches] = await Promise.all([
+  const [groups, teams, groupMatches, knockoutMatches] = await Promise.all([
     db.group.findMany({
       where: { contestId: contest.id },
       orderBy: { letter: "asc" },
@@ -35,6 +35,14 @@ export default async function CompetitionPage() {
     db.match.findMany({
       where: { contestId: contest.id, phase: "GROUP", homeTeamId: { not: null } },
       include: { homeTeam: true, awayTeam: true },
+    }),
+    db.match.findMany({
+      where: {
+        contestId: contest.id,
+        phase: { in: ["ROUND_OF_16", "QUARTER_FINAL", "SEMI_FINAL", "THIRD_PLACE", "FINAL"] },
+      },
+      include: { homeTeam: true, awayTeam: true },
+      orderBy: { matchNumber: "asc" },
     }),
   ])
 
@@ -74,6 +82,16 @@ export default async function CompetitionPage() {
         allGroupStandings={allGroupStandings}
         bestThirds={bestThirds}
         roundOf32Matchups={roundOf32Matchups}
+        knockoutMatches={knockoutMatches.map((m) => ({
+          matchNumber: m.matchNumber,
+          phase: m.phase,
+          knockoutLabel: m.knockoutLabel,
+          homeTeam: m.homeTeam ? { name: m.homeTeam.name, flagEmoji: m.homeTeam.flagEmoji } : null,
+          awayTeam: m.awayTeam ? { name: m.awayTeam.name, flagEmoji: m.awayTeam.flagEmoji } : null,
+          homeScore: m.homeScore,
+          awayScore: m.awayScore,
+          status: m.status,
+        }))}
       />
     </div>
   )

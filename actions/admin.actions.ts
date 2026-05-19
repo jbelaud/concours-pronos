@@ -314,15 +314,18 @@ export async function saveMatchResult(data: {
     await takeRankingSnapshot(match.contestId, data.matchday)
   }
 
-  // Auto-update Round of 32 teams based on new standings
+  // Auto-update bracket after every match
   if (match.phase === "GROUP") {
     await resolveRoundOf32Teams(match.contestId)
+  } else {
+    await resolveKnockoutProgression(match.contestId)
   }
 
   revalidatePath("/admin/resultats")
   revalidatePath("/admin/tableau")
   revalidatePath("/classement")
   revalidatePath("/pronostics")
+  revalidatePath("/competition")
   return { success: true as const }
 }
 
@@ -401,6 +404,109 @@ export async function resolveRoundOf32Teams(contestId: string) {
 
   revalidatePath("/admin/tableau")
   revalidatePath("/pronostics")
+}
+
+// ---------------------------------------------------------------------------
+// Knockout progression — propagate winners/losers through the bracket
+// ---------------------------------------------------------------------------
+
+export async function resolveKnockoutProgression(contestId: string) {
+  // Fetch all knockout matches (finished or not) with teams
+  const knockoutMatches = await db.match.findMany({
+    where: {
+      contestId,
+      phase: { in: ["ROUND_OF_32", "ROUND_OF_16", "QUARTER_FINAL", "SEMI_FINAL", "THIRD_PLACE", "FINAL"] },
+    },
+    include: { homeTeam: true, awayTeam: true },
+    orderBy: { matchNumber: "asc" },
+  })
+
+  // Index by matchNumber for quick lookup
+  const byNumber: Record<number, typeof knockoutMatches[0]> = {}
+  for (const m of knockoutMatches) byNumber[m.matchNumber] = m
+
+  // Helper: get winner teamId of a finished match
+  const winnerId = (matchNum: number): string | null => {
+    const m = byNumber[matchNum]
+    if (!m || m.homeScore === null || m.awayScore === null) return null
+    if (m.homeScore > m.awayScore) return m.homeTeamId ?? null
+    if (m.awayScore > m.homeScore) return m.awayTeamId ?? null
+    return null // draw not expected in knockout, but guard
+  }
+
+  // Helper: get loser teamId of a finished match (for 3rd place)
+  const loserId = (matchNum: number): string | null => {
+    const m = byNumber[matchNum]
+    if (!m || m.homeScore === null || m.awayScore === null) return null
+    if (m.homeScore > m.awayScore) return m.awayTeamId ?? null
+    if (m.awayScore > m.homeScore) return m.homeTeamId ?? null
+    return null
+  }
+
+  // Parse "Vainqueur 74 vs Vainqueur 77" → [74, 77]
+  // Parse "QF1 - Vainqueur 89 vs Vainqueur 90" → [89, 90]
+  const parseMatchNumbers = (label: string | null): [number, number] | null => {
+    if (!label) return null
+    const nums = [...label.matchAll(/\b(\d{2,3})\b/g)].map((m) => parseInt(m[1]))
+    if (nums.length >= 2) return [nums[0], nums[1]]
+    return null
+  }
+
+  const updates: Array<{ id: string; homeTeamId: string | null; awayTeamId: string | null }> = []
+
+  for (const match of knockoutMatches) {
+    // Skip if already has both teams and match is finished (don't overwrite)
+    if (match.homeTeamId && match.awayTeamId) continue
+
+    const label = match.knockoutLabel ?? ""
+
+    // 3e place: losers of semi-finals (matches 101 and 102)
+    if (match.phase === "THIRD_PLACE") {
+      const home = loserId(101)
+      const away = loserId(102)
+      if (home !== match.homeTeamId || away !== match.awayTeamId) {
+        updates.push({ id: match.id, homeTeamId: home, awayTeamId: away })
+      }
+      continue
+    }
+
+    // Finale: winners of semi-finals (matches 101 and 102)
+    if (match.phase === "FINAL") {
+      const home = winnerId(101)
+      const away = winnerId(102)
+      if (home !== match.homeTeamId || away !== match.awayTeamId) {
+        updates.push({ id: match.id, homeTeamId: home, awayTeamId: away })
+      }
+      continue
+    }
+
+    // General case: parse match numbers from label
+    const parsed = parseMatchNumbers(label)
+    if (!parsed) continue
+    const [homeRef, awayRef] = parsed
+
+    const home = winnerId(homeRef)
+    const away = winnerId(awayRef)
+
+    if (home !== match.homeTeamId || away !== match.awayTeamId) {
+      updates.push({ id: match.id, homeTeamId: home, awayTeamId: away })
+    }
+  }
+
+  // Apply updates
+  await Promise.all(
+    updates.map((u) =>
+      db.match.update({
+        where: { id: u.id },
+        data: { homeTeamId: u.homeTeamId, awayTeamId: u.awayTeamId },
+      })
+    )
+  )
+
+  revalidatePath("/admin/tableau")
+  revalidatePath("/admin/knockout")
+  revalidatePath("/pronostics")
+  revalidatePath("/competition")
 }
 
 // ---------------------------------------------------------------------------
