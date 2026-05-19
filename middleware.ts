@@ -10,7 +10,7 @@ export default auth((req) => {
   const isAdmin = req.auth?.user?.role === "ADMIN"
 
   // Public routes
-  const publicRoutes = ["/login", "/invitation"]
+  const publicRoutes = ["/login", "/invitation", "/rejoindre"]
   const isPublic = publicRoutes.some((r) => pathname.startsWith(r))
 
   if (!isLoggedIn && !isPublic) {
