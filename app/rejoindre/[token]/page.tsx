@@ -1,10 +1,11 @@
 import { db } from "@/lib/db"
 import { auth } from "@/lib/auth"
-import { notFound, redirect } from "next/navigation"
+import { notFound } from "next/navigation"
 import { JoinContestClient } from "./join-contest-client"
 import type { Metadata } from "next"
+import { Users, Trophy, Banknote, Star } from "lucide-react"
 
-export const metadata: Metadata = { title: "Rejoindre un concours" }
+export const metadata: Metadata = { title: "Rejoindre un concours — ConcoursPronos" }
 
 interface Props {
   params: Promise<{ token: string }>
@@ -22,9 +23,11 @@ export default async function RejoindreContestPage({ params }: Props) {
       buyIn: true,
       iban: true,
       paymentInstructions: true,
+      allowPublicJoin: true,
       _count: { select: { participants: true } },
       participants: { select: { hasPaid: true } },
       prizepool: { include: { payouts: { orderBy: { position: "asc" } } } },
+      template: { select: { name: true, edition: true } },
     },
   })
 
@@ -35,7 +38,6 @@ export default async function RejoindreContestPage({ params }: Props) {
   const session = await auth()
   const userId = session?.user?.id
 
-  // Vérifier si déjà inscrit
   let alreadyJoined = false
   if (userId) {
     const existing = await db.contestParticipant.findUnique({
@@ -44,14 +46,11 @@ export default async function RejoindreContestPage({ params }: Props) {
     alreadyJoined = !!existing
   }
 
-  // Calcul dynamique du prizepool réel
   const paidCount = contest.participants.filter((p) => p.hasPaid).length
   const totalCount = contest._count.participants
   const collectedAmount = paidCount * (contest.buyIn ?? 0)
   const allPaid = paidCount === totalCount && totalCount > 0
 
-  // Calcul des gains par place à partir des ratios définis par l'admin
-  // On applique les mêmes ratios que les payouts admin mais sur le montant collecté
   const prizepool = contest.prizepool
   let dynamicPayouts: Array<{ position: number; amount: number }> = []
   if (prizepool && prizepool.payouts.length > 0 && collectedAmount > 0 && prizepool.totalAmount > 0) {
@@ -63,85 +62,135 @@ export default async function RejoindreContestPage({ params }: Props) {
     dynamicPayouts = prizepool.payouts
   }
 
+  const itmCount = prizepool?.itmCount ?? dynamicPayouts.length
+  const estimatedTotal = prizepool?.totalAmount ?? 0
+
   return (
-    <div className="min-h-screen bg-[var(--background)] flex flex-col items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full gradient-accent text-white text-sm font-bold mb-4">
-            ⚽ ConcoursPronos
+    <div className="min-h-screen bg-[var(--background)] flex flex-col items-center justify-start p-4 pt-8 pb-12">
+      <div className="w-full max-w-sm flex flex-col gap-5">
+
+        {/* Hero header */}
+        <div className="text-center flex flex-col items-center gap-3">
+          <div className="w-16 h-16 rounded-2xl gradient-accent flex items-center justify-center text-3xl shadow-lg">
+            ⚽
           </div>
-          <h1 className="text-2xl font-black text-[var(--foreground)] mb-1">
-            Rejoindre le concours
-          </h1>
-          <p className="text-[var(--foreground-muted)] text-sm">
-            Tu es invité(e) à participer
-          </p>
+          <div>
+            <p className="text-xs text-[var(--accent)] uppercase tracking-widest font-bold mb-1">
+              ConcoursPronos
+            </p>
+            <h1 className="text-2xl font-black text-[var(--foreground)] leading-tight">
+              {contest.name}
+            </h1>
+            {contest.template && (
+              <p className="text-sm text-[var(--foreground-muted)] mt-1">
+                {contest.template.name} · {contest.template.edition}
+              </p>
+            )}
+          </div>
         </div>
 
-        {/* Infos concours */}
-        <div className="surface-card p-4 mb-4">
-          <div className="font-bold text-[var(--foreground)] text-lg mb-1">{contest.name}</div>
-          <div className="flex items-center gap-3 text-sm text-[var(--foreground-muted)]">
-            <span>👥 {totalCount} participant{totalCount > 1 ? "s" : ""}</span>
-            {contest.buyIn > 0 && <span>💰 Buy-in : {contest.buyIn}€</span>}
+        {/* Stats rapides */}
+        <div className="grid grid-cols-3 gap-2">
+          <div className="surface-card p-3 flex flex-col items-center gap-1 text-center">
+            <Users size={18} className="text-[var(--accent)]" />
+            <span className="text-xl font-black text-[var(--foreground)]">{totalCount}</span>
+            <span className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wide">
+              Participants
+            </span>
           </div>
 
-          {/* Prizepool dynamique */}
-          {prizepool && dynamicPayouts.length > 0 && (
-            <div className="mt-3 pt-3 border-t border-[var(--border)]">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wide">
-                  Cagnotte
-                </span>
-                <div className="flex items-center gap-1.5">
-                  {collectedAmount > 0 && (
-                    <span className="text-sm font-black text-[var(--accent)]">{collectedAmount}€</span>
-                  )}
-                  {!allPaid && totalCount > 0 && (
-                    <span className="text-[10px] text-[var(--foreground-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 rounded-full">
-                      {paidCount}/{totalCount} payés
-                    </span>
-                  )}
-                  {allPaid && (
-                    <span className="text-[10px] text-[var(--success)] bg-[var(--success-dim)] px-1.5 py-0.5 rounded-full">
-                      Complet
-                    </span>
-                  )}
-                </div>
+          <div className="surface-card p-3 flex flex-col items-center gap-1 text-center">
+            <Banknote size={18} className="text-[var(--warning)]" />
+            <span className="text-xl font-black text-[var(--foreground)]">
+              {contest.buyIn > 0 ? `${contest.buyIn}€` : "Gratuit"}
+            </span>
+            <span className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wide">
+              Buy-in
+            </span>
+          </div>
+
+          <div className="surface-card p-3 flex flex-col items-center gap-1 text-center">
+            <Trophy size={18} className="text-[var(--gold)]" />
+            <span className="text-xl font-black text-[var(--foreground)]">
+              {collectedAmount > 0 ? `${collectedAmount}€` : estimatedTotal > 0 ? `${estimatedTotal}€` : "–"}
+            </span>
+            <span className="text-[10px] text-[var(--foreground-muted)] uppercase tracking-wide">
+              Cagnotte
+            </span>
+          </div>
+        </div>
+
+        {/* Prizepool détaillé */}
+        {dynamicPayouts.length > 0 && (
+          <div className="surface-card p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-1.5">
+                <Star size={14} className="text-[var(--gold)]" />
+                <span className="text-sm font-semibold text-[var(--foreground)]">Gains</span>
               </div>
-              <div className="flex flex-col gap-1">
-                {dynamicPayouts.map((p) => (
-                  <div key={p.position} className="flex items-center justify-between text-sm">
-                    <span className="text-[var(--foreground-muted)]">
+              <div className="flex items-center gap-1.5">
+                {collectedAmount > 0 && (
+                  <span className="text-sm font-black text-[var(--accent)]">{collectedAmount}€ collectés</span>
+                )}
+                {!allPaid && totalCount > 0 && (
+                  <span className="text-[10px] text-[var(--foreground-subtle)] bg-[var(--surface-elevated)] px-1.5 py-0.5 rounded-full">
+                    {paidCount}/{totalCount}
+                  </span>
+                )}
+                {allPaid && (
+                  <span className="text-[10px] text-[var(--success)] bg-[var(--success-dim)] px-1.5 py-0.5 rounded-full">
+                    Complet
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex flex-col gap-2">
+              {dynamicPayouts.map((p) => {
+                const isItm = p.position <= itmCount
+                return (
+                  <div
+                    key={p.position}
+                    className={`flex items-center justify-between rounded-lg px-3 py-2 ${
+                      p.position === 1
+                        ? "bg-[var(--gold)]/10 border border-[var(--gold)]/20"
+                        : p.position === 2
+                        ? "bg-[var(--silver)]/10 border border-[var(--silver)]/20"
+                        : p.position === 3
+                        ? "bg-[var(--bronze)]/10 border border-[var(--bronze)]/20"
+                        : isItm
+                        ? "bg-[var(--success-dim)] border border-[var(--success)]/20"
+                        : "bg-[var(--surface-elevated)]"
+                    }`}
+                  >
+                    <span className="text-sm text-[var(--foreground-muted)]">
                       {p.position === 1 ? "🥇 1er" : p.position === 2 ? "🥈 2e" : p.position === 3 ? "🥉 3e" : `${p.position}e`}
                     </span>
-                    <span className="font-semibold text-[var(--foreground)]">
+                    <span className="font-bold text-[var(--foreground)]">
                       {p.amount}€
                       {!allPaid && collectedAmount > 0 && (
                         <span className="text-[10px] text-[var(--foreground-subtle)] ml-1">*</span>
                       )}
                     </span>
                   </div>
-                ))}
-              </div>
-              {!allPaid && collectedAmount > 0 && (
-                <p className="text-[10px] text-[var(--foreground-subtle)] mt-2">
-                  * Estimé sur {paidCount} paiement{paidCount > 1 ? "s" : ""} reçu{paidCount > 1 ? "s" : ""} — mis à jour à chaque paiement
-                </p>
-              )}
-              {collectedAmount === 0 && (
-                <p className="text-[10px] text-[var(--foreground-subtle)] mt-1">
-                  Cagnotte calculée dès le premier paiement reçu
-                </p>
-              )}
+                )
+              })}
             </div>
-          )}
-        </div>
+            {!allPaid && collectedAmount > 0 && (
+              <p className="text-[10px] text-[var(--foreground-subtle)] mt-2">
+                * Estimé sur {paidCount} paiement{paidCount > 1 ? "s" : ""} reçu{paidCount > 1 ? "s" : ""} — mis à jour à chaque paiement
+              </p>
+            )}
+            {collectedAmount === 0 && prizepool && (
+              <p className="text-[10px] text-[var(--foreground-subtle)] mt-2">
+                Cagnotte calculée dès le premier paiement reçu
+              </p>
+            )}
+          </div>
+        )}
 
-        {/* Instructions paiement si renseignées */}
+        {/* Instructions paiement */}
         {contest.buyIn > 0 && contest.iban && (
-          <div className="surface-card p-4 mb-4 border border-[var(--accent)]/20">
+          <div className="surface-card p-4 border border-[var(--accent)]/20">
             <div className="text-xs font-semibold text-[var(--accent)] uppercase tracking-wide mb-2 flex items-center gap-1">
               🏦 Paiement par virement
             </div>
@@ -154,13 +203,29 @@ export default async function RejoindreContestPage({ params }: Props) {
           </div>
         )}
 
-        <JoinContestClient
-          inviteToken={token}
-          contestName={contest.name}
-          isLoggedIn={!!userId}
-          alreadyJoined={alreadyJoined}
-          contestStatus={contest.status}
-        />
+        {/* CTA join */}
+        {!contest.allowPublicJoin ? (
+          <div className="surface-card p-4 text-center flex flex-col items-center gap-2">
+            <span className="text-2xl">🔒</span>
+            <p className="text-sm font-semibold text-[var(--foreground)]">Inscriptions fermées</p>
+            <p className="text-xs text-[var(--foreground-muted)]">
+              L&apos;organisateur a temporairement désactivé les inscriptions via lien. Contacte-le directement.
+            </p>
+          </div>
+        ) : (
+          <JoinContestClient
+            inviteToken={token}
+            contestName={contest.name}
+            isLoggedIn={!!userId}
+            alreadyJoined={alreadyJoined}
+            contestStatus={contest.status}
+          />
+        )}
+
+        {/* Footer */}
+        <p className="text-center text-[10px] text-[var(--foreground-subtle)]">
+          ConcoursPronos · Concours de pronostics privé
+        </p>
       </div>
     </div>
   )

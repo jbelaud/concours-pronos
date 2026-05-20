@@ -139,6 +139,7 @@ model Contest {
   templateId          String
   buyIn               Float         @default(0)
   inviteToken         String?       @unique @default(cuid())
+  allowPublicJoin     Boolean       @default(true)
   iban                String?
   paymentInstructions String?
   createdAt           DateTime      @default(now())

@@ -242,6 +242,16 @@ export async function regenerateContestInviteToken(contestId: string) {
   return { success: true, token }
 }
 
+export async function togglePublicJoin(contestId: string, allowPublicJoin: boolean) {
+  await requireAdmin()
+  await db.contest.update({
+    where: { id: contestId },
+    data: { allowPublicJoin },
+  })
+  revalidatePath("/admin/concours")
+  return { success: true, allowPublicJoin }
+}
+
 export async function fixContestFlags(contestId: string) {
   await requireAdmin()
 

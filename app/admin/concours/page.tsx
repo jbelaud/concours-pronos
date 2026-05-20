@@ -6,6 +6,7 @@ import { FixFlagsButton } from "@/components/admin/fix-flags-button"
 import { ContestInviteLink } from "@/components/admin/contest-invite-link"
 import { ContestPaymentForm } from "@/components/admin/contest-payment-form"
 import { ContestPrizepoolForm } from "@/components/admin/contest-prizepool-form"
+import { ContestPublicJoinToggle } from "@/components/admin/contest-public-join-toggle"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = { title: "Concours" }
@@ -49,8 +50,12 @@ export default async function ConcoursPage() {
             </div>
 
             {/* Lien d'invitation */}
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)] mb-1.5">Lien d&apos;invitation</p>
+            <div className="flex flex-col gap-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-[var(--foreground-subtle)]">Lien d&apos;invitation</p>
+              <ContestPublicJoinToggle
+                contestId={contest.id}
+                allowPublicJoin={contest.allowPublicJoin}
+              />
               <ContestInviteLink
                 contestId={contest.id}
                 contestName={contest.name}

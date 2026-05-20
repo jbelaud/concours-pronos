@@ -4,6 +4,7 @@ import { redirect } from "next/navigation"
 import Link from "next/link"
 import { formatKickoff, PHASE_LABELS } from "@/lib/utils"
 import { ChevronRight, Trophy, Target, Clock, Banknote } from "lucide-react"
+import { ShareContestCard } from "@/components/shared/share-contest-card"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = { title: "Accueil" }
@@ -37,6 +38,12 @@ export default async function AccueilPage() {
       </div>
     )
   }
+
+  // Vérifier si l'utilisateur est participant
+  const isParticipant = await db.contestParticipant.findUnique({
+    where: { contestId_userId: { contestId: contest.id, userId: session.user.id } },
+    select: { id: true },
+  })
 
   // Upcoming matches (next 3)
   const upcomingMatches = await db.match.findMany({
@@ -176,6 +183,15 @@ export default async function AccueilPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Partage du concours — visible si lien dispo et participant */}
+      {contest.inviteToken && isParticipant && (
+        <ShareContestCard
+          contestName={contest.name}
+          inviteToken={contest.inviteToken}
+          participantCount={contest._count.participants}
+        />
       )}
 
       {/* Prizepool dynamique */}

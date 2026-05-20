@@ -12,7 +12,7 @@ export async function joinContestViaLink(inviteToken: string) {
 
   const contest = await db.contest.findUnique({
     where: { inviteToken },
-    select: { id: true, name: true, status: true },
+    select: { id: true, name: true, status: true, allowPublicJoin: true },
   })
 
   if (!contest) {
@@ -21,6 +21,10 @@ export async function joinContestViaLink(inviteToken: string) {
 
   if (contest.status === "FINISHED") {
     return { error: "Ce concours est terminé." }
+  }
+
+  if (!contest.allowPublicJoin) {
+    return { error: "Les inscriptions via lien sont actuellement fermées." }
   }
 
   const existing = await db.contestParticipant.findUnique({
