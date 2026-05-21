@@ -1299,16 +1299,8 @@
       "teamCode": "FRA"
     },
     {
-      "name": "Antoine Griezmann",
-      "teamCode": "FRA"
-    },
-    {
-      "name": "Ousmane Dembélé",
-      "teamCode": "FRA"
-    },
-    {
-      "name": "Marcus Thuram",
-      "teamCode": "FRA"
+      "name": "Harry Kane",
+      "teamCode": "ENG"
     },
     {
       "name": "Erling Haaland",
@@ -1319,84 +1311,84 @@
       "teamCode": "ARG"
     },
     {
-      "name": "Lautaro Martínez",
-      "teamCode": "ARG"
-    },
-    {
-      "name": "Julián Álvarez",
-      "teamCode": "ARG"
-    },
-    {
-      "name": "Vinicius Jr",
-      "teamCode": "BRA"
-    },
-    {
-      "name": "Rodrygo",
-      "teamCode": "BRA"
-    },
-    {
-      "name": "Raphinha",
-      "teamCode": "BRA"
-    },
-    {
-      "name": "Endrick",
-      "teamCode": "BRA"
+      "name": "Mikel Oyarzabal",
+      "teamCode": "ESP"
     },
     {
       "name": "Cristiano Ronaldo",
       "teamCode": "POR"
     },
     {
-      "name": "Rafael Leão",
-      "teamCode": "POR"
+      "name": "Lamine Yamal",
+      "teamCode": "ESP"
+    },
+    {
+      "name": "Julián Álvarez",
+      "teamCode": "ARG"
+    },
+    {
+      "name": "Ousmane Dembélé",
+      "teamCode": "FRA"
+    },
+    {
+      "name": "Raphinha",
+      "teamCode": "BRA"
+    },
+    {
+      "name": "Vinicius Jr",
+      "teamCode": "BRA"
+    },
+    {
+      "name": "Lautaro Martínez",
+      "teamCode": "ARG"
+    },
+    {
+      "name": "Cody Gakpo",
+      "teamCode": "NED"
+    },
+    {
+      "name": "Désiré Doué",
+      "teamCode": "FRA"
+    },
+    {
+      "name": "Igor Thiago",
+      "teamCode": "BRA"
+    },
+    {
+      "name": "Luis Díaz",
+      "teamCode": "COL"
+    },
+    {
+      "name": "Michael Olise",
+      "teamCode": "FRA"
+    },
+    {
+      "name": "Nick Woltemade",
+      "teamCode": "GER"
+    },
+    {
+      "name": "Romelu Lukaku",
+      "teamCode": "BEL"
     },
     {
       "name": "Bruno Fernandes",
       "teamCode": "POR"
     },
     {
-      "name": "Gonçalo Ramos",
-      "teamCode": "POR"
-    },
-    {
-      "name": "Álvaro Morata",
-      "teamCode": "ESP"
-    },
-    {
-      "name": "Lamine Yamal",
-      "teamCode": "ESP"
-    },
-    {
-      "name": "Nico Williams",
-      "teamCode": "ESP"
-    },
-    {
-      "name": "Pedri",
-      "teamCode": "ESP"
-    },
-    {
-      "name": "Harry Kane",
-      "teamCode": "ENG"
-    },
-    {
-      "name": "Jude Bellingham",
-      "teamCode": "ENG"
-    },
-    {
-      "name": "Phil Foden",
-      "teamCode": "ENG"
-    },
-    {
       "name": "Bukayo Saka",
       "teamCode": "ENG"
     },
     {
-      "name": "Cole Palmer",
-      "teamCode": "ENG"
+      "name": "Dani Olmo",
+      "teamCode": "ESP"
     },
     {
-      "name": "Kai Havertz",
-      "teamCode": "GER"
+      "name": "Donyell Malen",
+      "teamCode": "NED"
+    },
+    {
+      "name": "Ferran Torres",
+      "teamCode": "ESP"
     },
     {
       "name": "Florian Wirtz",
@@ -1407,100 +1399,208 @@
       "teamCode": "GER"
     },
     {
-      "name": "Leroy Sané",
-      "teamCode": "GER"
+      "name": "Marcus Rashford",
+      "teamCode": "ENG"
+    },
+    {
+      "name": "Matheus Cunha",
+      "teamCode": "BRA"
     },
     {
       "name": "Memphis Depay",
       "teamCode": "NED"
     },
     {
-      "name": "Cody Gakpo",
-      "teamCode": "NED"
+      "name": "Neymar",
+      "teamCode": "BRA"
     },
     {
-      "name": "Donyell Malen",
-      "teamCode": "NED"
+      "name": "Viktor Gyökeres",
+      "teamCode": "SWE"
     },
     {
-      "name": "Romelu Lukaku",
+      "name": "Alexander Sorloth",
+      "teamCode": "NOR"
+    },
+    {
+      "name": "Anthony Gordon",
+      "teamCode": "ENG"
+    },
+    {
+      "name": "Armando González",
+      "teamCode": "MEX"
+    },
+    {
+      "name": "Bradley Barcola",
+      "teamCode": "FRA"
+    },
+    {
+      "name": "Charles De Ketelaere",
       "teamCode": "BEL"
-    },
-    {
-      "name": "Lois Openda",
-      "teamCode": "BEL"
-    },
-    {
-      "name": "Jeremy Doku",
-      "teamCode": "BEL"
-    },
-    {
-      "name": "Luis Díaz",
-      "teamCode": "COL"
-    },
-    {
-      "name": "Jhon Durán",
-      "teamCode": "COL"
-    },
-    {
-      "name": "Falcao",
-      "teamCode": "COL"
-    },
-    {
-      "name": "Darwin Núñez",
-      "teamCode": "URU"
-    },
-    {
-      "name": "Federico Valverde",
-      "teamCode": "URU"
-    },
-    {
-      "name": "Youssef En-Nesyri",
-      "teamCode": "MAR"
-    },
-    {
-      "name": "Hakim Ziyech",
-      "teamCode": "MAR"
     },
     {
       "name": "Christian Pulisic",
       "teamCode": "USA"
     },
     {
+      "name": "Cole Palmer",
+      "teamCode": "ENG"
+    },
+    {
+      "name": "Darwin Núñez",
+      "teamCode": "URU"
+    },
+    {
+      "name": "Deniz Undav",
+      "teamCode": "GER"
+    },
+    {
+      "name": "Edin Džeko",
+      "teamCode": "BIH"
+    },
+    {
+      "name": "Enner Valencia",
+      "teamCode": "ECU"
+    },
+    {
       "name": "Folarin Balogun",
       "teamCode": "USA"
     },
     {
-      "name": "Hirving Lozano",
+      "name": "Gabriel Martinelli",
+      "teamCode": "BRA"
+    },
+    {
+      "name": "Gonçalo Ramos",
+      "teamCode": "POR"
+    },
+    {
+      "name": "Jeremy Doku",
+      "teamCode": "BEL"
+    },
+    {
+      "name": "Jonathan David",
+      "teamCode": "CAN"
+    },
+    {
+      "name": "Jude Bellingham",
+      "teamCode": "ENG"
+    },
+    {
+      "name": "Kevin De Bruyne",
+      "teamCode": "BEL"
+    },
+    {
+      "name": "Lennart Czyborra",
+      "teamCode": "GER"
+    },
+    {
+      "name": "Leroy Sané",
+      "teamCode": "GER"
+    },
+    {
+      "name": "Luis Suárez",
+      "teamCode": "URU"
+    },
+    {
+      "name": "Mohamed Salah",
+      "teamCode": "EGY"
+    },
+    {
+      "name": "Nico Williams",
+      "teamCode": "ESP"
+    },
+    {
+      "name": "Omar Marmoush",
+      "teamCode": "EGY"
+    },
+    {
+      "name": "Patrik Schick",
+      "teamCode": "CZE"
+    },
+    {
+      "name": "Rafael Leão",
+      "teamCode": "POR"
+    },
+    {
+      "name": "Raúl Jiménez",
       "teamCode": "MEX"
-    },
-    {
-      "name": "Henry Martín",
-      "teamCode": "MEX"
-    },
-    {
-      "name": "Kaoru Mitoma",
-      "teamCode": "JPN"
-    },
-    {
-      "name": "Alexander Isak",
-      "teamCode": "SWE"
-    },
-    {
-      "name": "Arda Güler",
-      "teamCode": "TUR"
     },
     {
       "name": "Sadio Mané",
       "teamCode": "SEN"
     },
     {
-      "name": "Habib Diallo",
+      "name": "Serge Gnabry",
+      "teamCode": "GER"
+    },
+    {
+      "name": "Alexander Isak",
+      "teamCode": "SWE"
+    },
+    {
+      "name": "Andrej Kramarić",
+      "teamCode": "CRO"
+    },
+    {
+      "name": "Arda Güler",
+      "teamCode": "TUR"
+    },
+    {
+      "name": "Ayase Ueda",
+      "teamCode": "JPN"
+    },
+    {
+      "name": "Breel Embolo",
+      "teamCode": "SUI"
+    },
+    {
+      "name": "Eberechi Eze",
+      "teamCode": "ENG"
+    },
+    {
+      "name": "Ivan Perišić",
+      "teamCode": "CRO"
+    },
+    {
+      "name": "Jean-Philippe Mateta",
+      "teamCode": "FRA"
+    },
+    {
+      "name": "Mikel Merino",
+      "teamCode": "ESP"
+    },
+    {
+      "name": "Morgan Rogers",
+      "teamCode": "ENG"
+    },
+    {
+      "name": "Nicolas Jackson",
       "teamCode": "SEN"
     },
     {
-      "name": "Marcel Sabitzer",
-      "teamCode": "AUT"
+      "name": "Pedro Neto",
+      "teamCode": "POR"
+    },
+    {
+      "name": "Phil Foden",
+      "teamCode": "ENG"
+    },
+    {
+      "name": "Riyad Mahrez",
+      "teamCode": "ALG"
+    },
+    {
+      "name": "Achraf Hakimi",
+      "teamCode": "MAR"
+    },
+    {
+      "name": "Ange-Yoan Bonny",
+      "teamCode": "FRA"
+    },
+    {
+      "name": "Antoine Semenyo",
+      "teamCode": "GHA"
     }
   ]
 }
