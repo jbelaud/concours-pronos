@@ -1,6 +1,6 @@
 import { db } from "@/lib/db"
 import Link from "next/link"
-import { ClipboardCheck, Users, Swords, Plus } from "lucide-react"
+import { ClipboardCheck, Users, Plus } from "lucide-react"
 import { ContestStatusButton } from "@/components/admin/contest-status-button"
 import type { Metadata } from "next"
 
@@ -69,15 +69,10 @@ export default async function AdminPage() {
                 <ContestStatusButton contestId={contest.id} status={contest.status} />
                 <Link
                   href={`/admin/resultats?contestId=${contest.id}`}
-                  className="flex items-center justify-center gap-1 py-2 px-3 rounded-lg bg-[var(--surface-elevated)] text-xs font-semibold text-[var(--foreground-muted)] hover:text-[var(--foreground)] border border-[var(--border)] transition-all"
+                  className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-[var(--surface-elevated)] text-xs font-semibold text-[var(--foreground-muted)] hover:text-[var(--foreground)] border border-[var(--border)] transition-all"
                 >
                   <ClipboardCheck size={13} />
-                </Link>
-                <Link
-                  href={`/admin/knockout?contestId=${contest.id}`}
-                  className="flex items-center justify-center gap-1 py-2 px-3 rounded-lg bg-[var(--surface-elevated)] text-xs font-semibold text-[var(--foreground-muted)] hover:text-[var(--foreground)] border border-[var(--border)] transition-all"
-                >
-                  <Swords size={13} />
+                  Résultats
                 </Link>
               </div>
             </div>
