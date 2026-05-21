@@ -212,14 +212,14 @@ export default async function AccueilPage({ searchParams }: { searchParams: Prom
               label="Classement"
               value={myEntry ? `${myEntry.rank}e` : "–"}
               sub={`${myEntry?.totalPoints ?? 0} pts`}
-              href={`/classement${activeContest ? `?contestId=${activeContest.id}` : ""}`}
+              href={`/classement?contestId=${activeContest.id}`}
             />
             <StatCard
               icon="⚽"
               label="À pronostiquer"
               value={pendingPredictions.toString()}
               sub="matchs"
-              href={`/pronostics${activeContest ? `?contestId=${activeContest.id}` : ""}`}
+              href={`/pronostics?contestId=${activeContest.id}`}
               highlight={pendingPredictions > 0}
             />
             <StatCard

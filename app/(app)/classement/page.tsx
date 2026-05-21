@@ -8,15 +8,32 @@ import type { LeaderboardRow, RankingEvolutionPoint } from "@/types"
 
 export const metadata: Metadata = { title: "Classement" }
 
-export default async function ClassementPage() {
+export default async function ClassementPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ contestId?: string }>
+}) {
   const session = await auth()
   if (!session?.user) redirect("/login")
+  const userId = session.user.id
 
-  const contest = await db.contest.findFirst({
-    where: { status: { in: ["ONGOING", "REGISTRATION", "FINISHED", "DRAFT"] } },
-    include: { prizepool: { include: { payouts: true } } },
-    orderBy: { createdAt: "desc" },
+  const { contestId: requestedId } = await searchParams
+
+  const myParticipation = await db.contestParticipant.findFirst({
+    where: {
+      userId,
+      contest: { status: { in: ["ONGOING", "REGISTRATION", "FINISHED", "DRAFT"] } },
+      ...(requestedId ? { contestId: requestedId } : {}),
+    },
+    include: {
+      contest: {
+        include: { prizepool: { include: { payouts: true } } },
+      },
+    },
+    orderBy: { joinedAt: "desc" },
   })
+
+  const contest = myParticipation?.contest ?? null
 
   if (!contest) {
     return (
@@ -74,9 +91,8 @@ export default async function ClassementPage() {
     }
   })
 
-  // My ranking history
   const mySnapshots = await db.rankingSnapshot.findMany({
-    where: { contestId: contest.id, userId: session.user.id },
+    where: { contestId: contest.id, userId },
     orderBy: { matchday: "asc" },
   })
 
@@ -93,7 +109,6 @@ export default async function ClassementPage() {
         <p className="text-sm text-[var(--foreground-muted)]">{contest.name}</p>
       </div>
 
-      {/* My evolution chart */}
       {evolutionData.length > 1 && (
         <section className="surface-card p-4">
           <h2 className="text-sm font-semibold text-[var(--foreground)] mb-3">
@@ -107,7 +122,6 @@ export default async function ClassementPage() {
         </section>
       )}
 
-      {/* Prize info */}
       {payouts.length > 0 && (
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide">
           {payouts
@@ -136,10 +150,9 @@ export default async function ClassementPage() {
         </div>
       )}
 
-      {/* Leaderboard */}
       <LeaderboardList
         entries={rows}
-        currentUserId={session.user.id}
+        currentUserId={userId}
         itmCount={itmCount}
       />
 

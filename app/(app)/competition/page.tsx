@@ -7,14 +7,28 @@ import type { Metadata } from "next"
 
 export const metadata: Metadata = { title: "Compétition" }
 
-export default async function CompetitionPage() {
+export default async function CompetitionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ contestId?: string }>
+}) {
   const session = await auth()
   if (!session?.user) redirect("/login")
+  const userId = session.user.id
 
-  const contest = await db.contest.findFirst({
-    where: { status: { in: ["ONGOING", "REGISTRATION", "DRAFT"] } },
-    orderBy: { createdAt: "desc" },
+  const { contestId: requestedId } = await searchParams
+
+  const myParticipation = await db.contestParticipant.findFirst({
+    where: {
+      userId,
+      contest: { status: { in: ["ONGOING", "REGISTRATION", "DRAFT"] } },
+      ...(requestedId ? { contestId: requestedId } : {}),
+    },
+    include: { contest: true },
+    orderBy: { joinedAt: "desc" },
   })
+
+  const contest = myParticipation?.contest ?? null
 
   if (!contest) {
     return (

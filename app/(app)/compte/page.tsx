@@ -8,12 +8,19 @@ import type { Metadata } from "next"
 
 export const metadata: Metadata = { title: "Mon compte" }
 
-export default async function ComptePage() {
+export default async function ComptePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ contestId?: string }>
+}) {
   const session = await auth()
   if (!session?.user) redirect("/login")
+  const userId = session.user.id
+
+  const { contestId: requestedId } = await searchParams
 
   const user = await db.user.findUnique({
-    where: { id: session.user.id },
+    where: { id: userId },
     select: {
       firstName: true,
       lastName: true,
@@ -26,37 +33,33 @@ export default async function ComptePage() {
 
   if (!user) redirect("/login")
 
-  const contest = await db.contest.findFirst({
-    where: { status: { in: ["ONGOING", "REGISTRATION", "DRAFT"] } },
-    orderBy: { createdAt: "desc" },
+  const myParticipation = await db.contestParticipant.findFirst({
+    where: {
+      userId,
+      contest: { status: { in: ["ONGOING", "REGISTRATION", "DRAFT"] } },
+      ...(requestedId ? { contestId: requestedId } : {}),
+    },
+    include: { contest: true },
+    orderBy: { joinedAt: "desc" },
   })
 
-  const myEntry = contest
-    ? await db.leaderboardEntry.findUnique({
-        where: {
-          contestId_userId: {
-            contestId: contest.id,
-            userId: session.user.id,
-          },
-        },
-      })
-    : null
+  const contest = myParticipation?.contest ?? null
 
-  const predictionsCount = contest
-    ? await db.prediction.count({
-        where: { contestId: contest.id, userId: session.user.id },
-      })
-    : 0
-
-  const exactScoresTotal = contest
-    ? await db.prediction.count({
-        where: {
-          contestId: contest.id,
-          userId: session.user.id,
-          status: "EXACT_SCORE",
-        },
-      })
-    : 0
+  const [myEntry, predictionsCount, exactScoresTotal] = await Promise.all([
+    contest
+      ? db.leaderboardEntry.findUnique({
+          where: { contestId_userId: { contestId: contest.id, userId } },
+        })
+      : Promise.resolve(null),
+    contest
+      ? db.prediction.count({ where: { contestId: contest.id, userId } })
+      : Promise.resolve(0),
+    contest
+      ? db.prediction.count({
+          where: { contestId: contest.id, userId, status: "EXACT_SCORE" },
+        })
+      : Promise.resolve(0),
+  ])
 
   return (
     <div className="flex flex-col gap-4">
@@ -83,27 +86,30 @@ export default async function ComptePage() {
 
       {/* Stats */}
       {contest && (
-        <div className="grid grid-cols-3 gap-2">
-          <div className="surface-card p-3 text-center">
-            <div className="text-2xl font-black text-[var(--foreground)]">
-              {myEntry?.rank ?? "–"}
-              {myEntry?.rank && <span className="text-sm font-normal">e</span>}
+        <>
+          <p className="text-xs text-[var(--foreground-muted)] -mb-1">{contest.name}</p>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="surface-card p-3 text-center">
+              <div className="text-2xl font-black text-[var(--foreground)]">
+                {myEntry?.rank ?? "–"}
+                {myEntry?.rank && <span className="text-sm font-normal">e</span>}
+              </div>
+              <div className="text-xs text-[var(--foreground-muted)] mt-0.5">Classement</div>
             </div>
-            <div className="text-xs text-[var(--foreground-muted)] mt-0.5">Classement</div>
-          </div>
-          <div className="surface-card p-3 text-center">
-            <div className="text-2xl font-black text-[var(--foreground)]">
-              {myEntry?.totalPoints ?? 0}
+            <div className="surface-card p-3 text-center">
+              <div className="text-2xl font-black text-[var(--foreground)]">
+                {myEntry?.totalPoints ?? 0}
+              </div>
+              <div className="text-xs text-[var(--foreground-muted)] mt-0.5">Points</div>
             </div>
-            <div className="text-xs text-[var(--foreground-muted)] mt-0.5">Points</div>
-          </div>
-          <div className="surface-card p-3 text-center">
-            <div className="text-2xl font-black text-[var(--accent)]">
-              {exactScoresTotal}
+            <div className="surface-card p-3 text-center">
+              <div className="text-2xl font-black text-[var(--accent)]">
+                {exactScoresTotal}
+              </div>
+              <div className="text-xs text-[var(--foreground-muted)] mt-0.5">Scores exacts</div>
             </div>
-            <div className="text-xs text-[var(--foreground-muted)] mt-0.5">Scores exacts</div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Admin link */}
