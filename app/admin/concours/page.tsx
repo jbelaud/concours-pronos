@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { db } from "@/lib/db"
-import { Plus } from "lucide-react"
+import { Plus, Pencil } from "lucide-react"
 import { DeleteContestButton } from "@/components/admin/delete-contest-button"
 import { FixFlagsButton } from "@/components/admin/fix-flags-button"
 import { ContestInviteLink } from "@/components/admin/contest-invite-link"
@@ -80,6 +80,13 @@ export default async function ConcoursPage() {
 
             {/* Actions */}
             <div className="flex gap-2 pt-1">
+              <Link
+                href={`/admin/concours/${contest.id}/modifier`}
+                className="flex items-center gap-1.5 py-2 px-3 rounded-lg bg-[var(--surface-elevated)] border border-[var(--border)] text-xs font-semibold text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:border-[var(--accent)]/40 transition-all"
+              >
+                <Pencil size={13} />
+                Modifier
+              </Link>
               <FixFlagsButton contestId={contest.id} />
               <DeleteContestButton contestId={contest.id} contestName={contest.name} />
             </div>

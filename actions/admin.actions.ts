@@ -299,6 +299,100 @@ export async function fixContestFlags(contestId: string) {
   return { success: true, fixed }
 }
 
+export async function updateContest(data: {
+  contestId: string
+  name: string
+  isFree: boolean
+  buyIn: number
+  iban?: string
+  paymentInstructions?: string
+  settings: {
+    pointsCorrectResult: number
+    pointsExactScore: number
+    pointsWrongResult: number
+    pointsWinner: number
+    pointsTopScorer: number
+    pointsBestAttack: number
+    pointsBestDefense: number
+    pointsGroupFirst: number
+    pointsGroupSecond: number
+    knockoutScoringRule: "REGULAR_TIME" | "FULL_TIME"
+  }
+  prizepool: {
+    totalAmount: number
+    itmCount: number
+    payouts: Array<{ position: number; amount: number }>
+  }
+}) {
+  await requireAdmin()
+
+  await db.contest.update({
+    where: { id: data.contestId },
+    data: {
+      name: data.name,
+      isFree: data.isFree,
+      buyIn: data.isFree ? 0 : data.buyIn,
+      iban: data.isFree ? null : (data.iban || null),
+      paymentInstructions: data.isFree ? null : (data.paymentInstructions || null),
+    },
+  })
+
+  await db.contestSettings.upsert({
+    where: { contestId: data.contestId },
+    create: {
+      contestId: data.contestId,
+      pointsCorrectResult: data.settings.pointsCorrectResult,
+      pointsExactScore: data.settings.pointsExactScore,
+      pointsWrongResult: data.settings.pointsWrongResult,
+      pointsWinner: data.settings.pointsWinner,
+      pointsTopScorer: data.settings.pointsTopScorer,
+      pointsBestAttack: data.settings.pointsBestAttack,
+      pointsBestDefense: data.settings.pointsBestDefense,
+      pointsGroupFirst: data.settings.pointsGroupFirst,
+      pointsGroupSecond: data.settings.pointsGroupSecond,
+      knockoutScoringRule: data.settings.knockoutScoringRule,
+    },
+    update: {
+      pointsCorrectResult: data.settings.pointsCorrectResult,
+      pointsExactScore: data.settings.pointsExactScore,
+      pointsWrongResult: data.settings.pointsWrongResult,
+      pointsWinner: data.settings.pointsWinner,
+      pointsTopScorer: data.settings.pointsTopScorer,
+      pointsBestAttack: data.settings.pointsBestAttack,
+      pointsBestDefense: data.settings.pointsBestDefense,
+      pointsGroupFirst: data.settings.pointsGroupFirst,
+      pointsGroupSecond: data.settings.pointsGroupSecond,
+      knockoutScoringRule: data.settings.knockoutScoringRule,
+    },
+  })
+
+  if (!data.isFree) {
+    const existing = await db.prizepool.findUnique({ where: { contestId: data.contestId } })
+    if (!existing) {
+      const created = await db.prizepool.create({
+        data: { contestId: data.contestId, totalAmount: data.prizepool.totalAmount, itmCount: data.prizepool.itmCount },
+      })
+      await db.payout.createMany({
+        data: data.prizepool.payouts.map((p) => ({ prizepoolId: created.id, position: p.position, amount: p.amount })),
+      })
+    } else {
+      await db.prizepool.update({
+        where: { id: existing.id },
+        data: { totalAmount: data.prizepool.totalAmount, itmCount: data.prizepool.itmCount },
+      })
+      await db.payout.deleteMany({ where: { prizepoolId: existing.id } })
+      await db.payout.createMany({
+        data: data.prizepool.payouts.map((p) => ({ prizepoolId: existing.id, position: p.position, amount: p.amount })),
+      })
+    }
+  }
+
+  revalidatePath("/admin")
+  revalidatePath("/admin/concours")
+  revalidatePath(`/admin/concours/${data.contestId}/modifier`)
+  return { success: true as const }
+}
+
 export async function deleteContest(contestId: string) {
   await requireAdmin()
   await db.contest.delete({ where: { id: contestId } })
