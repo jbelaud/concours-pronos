@@ -2,9 +2,10 @@ import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { redirect, notFound } from "next/navigation"
 import Link from "next/link"
-import { Trophy, Medal, Star, Target, CheckCircle, Crosshair, Swords, Shield, ArrowRight, Users } from "lucide-react"
+import { Crosshair, Swords, Shield, ArrowRight, Trophy } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { FootballAvatar } from "@/components/shared/football-avatar"
+import { ShareResultButton } from "@/components/shared/share-result-button"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = { title: "Clôture du concours" }
@@ -275,10 +276,24 @@ export default async function ContestClosurePage({ params }: { params: Promise<{
         </div>
       </section>
 
+      {/* Partage */}
+      {myEntry && (() => {
+        const rankLabel = myEntry.rank === 1 ? "1er 🥇" : myEntry.rank === 2 ? "2e 🥈" : myEntry.rank === 3 ? "3e 🥉" : `${myEntry.rank}e`
+        const shareText = [
+          `🏆 ${contest.name}`,
+          `Je termine ${rankLabel} avec ${myEntry.totalPoints} pts sur ${totalParticipants} participants !`,
+          `✅ ${myEntry.exactScores} scores exacts · 🎯 ${myEntry.correctResults - myEntry.exactScores} bons résultats`,
+          winnerTeam ? `🏅 Vainqueur : ${winnerTeam.flagEmoji ?? ""} ${winnerTeam.name}` : "",
+          `\nQui fait mieux ? 😏`,
+        ].filter(Boolean).join("\n")
+
+        return <ShareResultButton text={shareText} />
+      })()}
+
       {/* Bouton retour au concours */}
       <Link
         href={`/accueil?contestId=${id}`}
-        className="flex items-center justify-center gap-2 py-3.5 rounded-xl gradient-accent text-white font-bold text-sm hover:opacity-90 transition-opacity"
+        className="flex items-center justify-center gap-2 py-3.5 rounded-xl border border-[var(--border)] text-[var(--foreground)] font-bold text-sm hover:border-[var(--accent)]/40 transition-colors"
       >
         Voir le concours
         <ArrowRight size={16} />
