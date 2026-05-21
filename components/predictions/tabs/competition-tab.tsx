@@ -68,6 +68,7 @@ export function CompetitionTab({ allGroupStandings, bestThirds, roundOf32Matchup
           roundOf32Matchups={roundOf32Matchups}
           knockoutByPhase={knockoutByPhase}
           hasKnockoutData={hasKnockoutData}
+          allTeams={allTeams}
         />
       )}
     </div>
@@ -359,23 +360,29 @@ function BracketSection({
   roundOf32Matchups,
   knockoutByPhase,
   hasKnockoutData,
+  allTeams,
 }: {
   roundOf32Matchups: ResolvedMatchup[]
   knockoutByPhase: Record<string, KnockoutMatch[]>
   hasKnockoutData: boolean
+  allTeams: TeamStanding[]
 }) {
+  const teamByCode = Object.fromEntries(allTeams.map((t) => [t.code, t]))
+
   return (
     <div className="flex flex-col gap-3">
       {/* 1/16 */}
       <PhaseCard title="1/16 de finale" subtitle="Mis à jour en temps réel">
         {roundOf32Matchups.map(({ matchNumber, homeTeamCode, awayTeamCode, homeLabel, awayLabel }) => {
           const isResolved = !!homeTeamCode && !!awayTeamCode
+          const homeTeam = homeTeamCode ? teamByCode[homeTeamCode] : null
+          const awayTeam = awayTeamCode ? teamByCode[awayTeamCode] : null
           return (
             <BracketRow
               key={matchNumber}
               matchNumber={matchNumber}
-              homeDisplay={homeLabel}
-              awayDisplay={awayLabel}
+              homeDisplay={homeTeam ? `${homeTeam.flagEmoji ?? ""} ${homeTeam.name}` : homeLabel}
+              awayDisplay={awayTeam ? `${awayTeam.flagEmoji ?? ""} ${awayTeam.name}` : awayLabel}
               isResolved={isResolved}
             />
           )
