@@ -1268,28 +1268,28 @@
       "matchNumber": 101,
       "phase": "SEMI_FINAL",
       "kickoff": "2026-07-14T19:00:00Z",
-      "knockoutLabel": "SF1 - Vainqueur QF1 vs Vainqueur QF2",
+      "knockoutLabel": "SF1 - Vainqueur 97 vs Vainqueur 98",
       "venue": "AT&T Stadium, Dallas"
     },
     {
       "matchNumber": 102,
       "phase": "SEMI_FINAL",
       "kickoff": "2026-07-15T19:00:00Z",
-      "knockoutLabel": "SF2 - Vainqueur QF3 vs Vainqueur QF4",
+      "knockoutLabel": "SF2 - Vainqueur 99 vs Vainqueur 100",
       "venue": "Mercedes-Benz Stadium, Atlanta"
     },
     {
       "matchNumber": 103,
       "phase": "THIRD_PLACE",
       "kickoff": "2026-07-18T21:00:00Z",
-      "knockoutLabel": "3e place",
+      "knockoutLabel": "3e place - Perdant 101 vs Perdant 102",
       "venue": "Hard Rock Stadium, Miami"
     },
     {
       "matchNumber": 104,
       "phase": "FINAL",
       "kickoff": "2026-07-19T19:00:00Z",
-      "knockoutLabel": "Finale",
+      "knockoutLabel": "Finale - Vainqueur 101 vs Vainqueur 102",
       "venue": "MetLife Stadium, New York"
     }
   ],

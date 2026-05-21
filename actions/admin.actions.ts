@@ -615,9 +615,9 @@ export async function resolveKnockoutProgression(contestId: string) {
   }
 
   // Parse label into home/away slot references
-  // Strips leading prefix like "SF1 - " then splits on " vs "
+  // Strips leading prefix like "SF1 - " or "3e place - " then splits on " vs "
   const parseSlots = (label: string): [string, string] | null => {
-    const cleaned = label.replace(/^[A-Z]+\d+\s*-\s*/, "").trim()
+    const cleaned = label.replace(/^.+?\s*-\s*/, "").trim()
     const parts = cleaned.split(/\s+vs\s+/i)
     if (parts.length === 2) return [parts[0].trim(), parts[1].trim()]
     return null
