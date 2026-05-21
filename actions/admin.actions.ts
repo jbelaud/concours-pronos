@@ -558,19 +558,24 @@ export async function resolveKnockoutProgression(contestId: string) {
   const byNumber: Record<number, typeof knockoutMatches[0]> = {}
   for (const m of knockoutMatches) byNumber[m.matchNumber] = m
 
-  // Helper: get winner teamId of a finished match
+  // Helper: get winner teamId of a finished knockout match.
+  // Convention for draws resolved by penalties:
+  //   - regularTimeHome = regularTimeAway (the 90+ET score, equal)
+  //   - homeScore / awayScore = the penalty shootout score (e.g. 4-3)
+  //   → homeScore > awayScore means home team won on penalties
+  // So comparing homeScore vs awayScore always gives the correct winner.
   const winnerId = (matchNum: number): string | null => {
     const m = byNumber[matchNum]
-    if (!m || m.homeScore === null || m.awayScore === null) return null
+    if (!m || m.status !== "FINISHED" || m.homeScore === null || m.awayScore === null) return null
     if (m.homeScore > m.awayScore) return m.homeTeamId ?? null
     if (m.awayScore > m.homeScore) return m.awayTeamId ?? null
-    return null // draw not expected in knockout, but guard
+    return null // still level — admin must correct the result
   }
 
-  // Helper: get loser teamId of a finished match (for 3rd place)
+  // Helper: get loser teamId of a finished knockout match (for 3rd place).
   const loserId = (matchNum: number): string | null => {
     const m = byNumber[matchNum]
-    if (!m || m.homeScore === null || m.awayScore === null) return null
+    if (!m || m.status !== "FINISHED" || m.homeScore === null || m.awayScore === null) return null
     if (m.homeScore > m.awayScore) return m.awayTeamId ?? null
     if (m.awayScore > m.homeScore) return m.homeTeamId ?? null
     return null

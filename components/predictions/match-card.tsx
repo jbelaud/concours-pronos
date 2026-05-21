@@ -101,6 +101,9 @@ export function MatchCard({
         </span>
         <div className="flex items-center gap-1">
           {isPending && <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] animate-pulse" />}
+          {!isPending && !locked && !saved && (
+            <span className="w-2 h-2 rounded-full bg-[var(--error)] animate-pulse" title="Pronostic manquant" />
+          )}
           {saved && !isPending && !locked && <CheckCircle size={13} className="text-[var(--success)]" />}
           {locked && <Lock size={12} className="text-[var(--foreground-subtle)]" />}
         </div>

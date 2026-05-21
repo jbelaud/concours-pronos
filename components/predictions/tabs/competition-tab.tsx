@@ -52,11 +52,11 @@ export function CompetitionTab({ allGroupStandings, bestThirds, roundOf32Matchup
       <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
         <SectionPill active={activeSection === "groups"} onClick={() => setActiveSection("groups")}>🏟️ Groupes</SectionPill>
         <SectionPill active={activeSection === "thirds"} onClick={() => setActiveSection("thirds")}>🥉 3es</SectionPill>
-        <SectionPill active={activeSection === "attack"} onClick={() => setActiveSection("attack")}>⚔️ Attaque</SectionPill>
-        <SectionPill active={activeSection === "defense"} onClick={() => setActiveSection("defense")}>🛡️ Défense</SectionPill>
         <SectionPill active={activeSection === "bracket"} onClick={() => setActiveSection("bracket")}>
           📊 Tableau final {resolvedCount > 0 && <span className="opacity-70">({resolvedCount}/16)</span>}
         </SectionPill>
+        <SectionPill active={activeSection === "attack"} onClick={() => setActiveSection("attack")}>⚔️ Attaque</SectionPill>
+        <SectionPill active={activeSection === "defense"} onClick={() => setActiveSection("defense")}>🛡️ Défense</SectionPill>
       </div>
 
       {activeSection === "groups" && <GroupsSection standings={allGroupStandings} />}
