@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Share2, Copy, Check, QrCode, MessageCircle, X } from "lucide-react"
 import { toast } from "sonner"
@@ -15,8 +15,16 @@ interface ShareContestCardProps {
 export function ShareContestCard({ contestName, inviteToken, participantCount }: ShareContestCardProps) {
   const [copied, setCopied] = useState(false)
   const [showQR, setShowQR] = useState(false)
+  // Détecté côté client uniquement pour éviter le mismatch d'hydratation
+  const [hasNativeShare, setHasNativeShare] = useState(false)
+  const [origin, setOrigin] = useState("")
 
-  const inviteUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/rejoindre/${inviteToken}`
+  useEffect(() => {
+    setHasNativeShare(!!navigator.share)
+    setOrigin(window.location.origin)
+  }, [])
+
+  const inviteUrl = `${origin}/rejoindre/${inviteToken}`
 
   const handleCopy = useCallback(async () => {
     try {
@@ -47,7 +55,7 @@ export function ShareContestCard({ contestName, inviteToken, participantCount }:
     }
   }, [contestName, inviteUrl, handleCopy])
 
-  const hasNativeShare = typeof navigator !== "undefined" && !!navigator.share
+
 
   return (
     <>
