@@ -445,6 +445,14 @@ export async function saveMatchResult(data: {
 
   if (data.matchday !== undefined) {
     await takeRankingSnapshot(match.contestId, data.matchday)
+  } else {
+    // Knockout matches: auto-increment snapshot matchday
+    const lastSnapshot = await db.rankingSnapshot.findFirst({
+      where: { contestId: match.contestId },
+      orderBy: { matchday: "desc" },
+      select: { matchday: true },
+    })
+    await takeRankingSnapshot(match.contestId, (lastSnapshot?.matchday ?? 0) + 1)
   }
 
   // Auto-update bracket after every match
@@ -862,6 +870,15 @@ export async function applyBonusResults(data: {
   )
 
   await rebuildLeaderboard(data.contestId)
+
+  // Snapshot after bonus so the chart reflects the final standings change
+  const lastSnapshot = await db.rankingSnapshot.findFirst({
+    where: { contestId: data.contestId },
+    orderBy: { matchday: "desc" },
+    select: { matchday: true },
+  })
+  const bonusMatchday = (lastSnapshot?.matchday ?? 0) + 1
+  await takeRankingSnapshot(data.contestId, bonusMatchday)
 
   revalidatePath("/admin/bonus")
   revalidatePath("/classement")
