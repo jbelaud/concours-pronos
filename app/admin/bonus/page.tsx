@@ -3,7 +3,6 @@ import { BonusManager } from "@/components/admin/bonus-manager"
 import { SyncScorersButton } from "@/components/admin/sync-scorers-button"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
-import { computeGroupStandings } from "@/lib/wc2026-standings"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = { title: "Bonus & Résultats finaux" }
@@ -72,44 +71,39 @@ export default async function BonusPage({ searchParams }: Props) {
 
   const currentTopScorerIds = scorerCandidates.filter((s) => s.isWinner).map((s) => s.id)
 
-  // Compute best attack / defense from group standings
+  // Compute best attack / defense across ALL finished matches (groups + knockout)
+  // Penalties (TAB) are excluded: use regularTimeHome/Away when available, otherwise homeScore/awayScore
   let initialBestAttackIds: string[] = []
   let initialBestDefenseIds: string[] = []
 
   if (contest) {
-    const groupMatches = await db.match.findMany({
-      where: { contestId: contest.id, phase: "GROUP", status: "FINISHED" },
+    const allFinishedMatches = await db.match.findMany({
+      where: { contestId: contest.id, status: "FINISHED" },
       include: { homeTeam: true, awayTeam: true },
     })
 
-    const groupLetters = [...new Set(teams.map((t) => t.group).filter(Boolean) as string[])]
+    // Tally goals for/against per team, ignoring penalty shootout goals
+    const goalsFor: Record<string, number> = {}
+    const goalsAgainst: Record<string, number> = {}
 
-    const allStandings = groupLetters.flatMap((letter) => {
-      const groupTeams = teams.filter((t) => t.group === letter)
-      const teamCodes = groupTeams.map((t) => t.code)
-      const teamMeta: Record<string, { name: string; flagEmoji: string | null }> = {}
-      for (const t of groupTeams) teamMeta[t.code] = { name: t.name, flagEmoji: t.flagEmoji }
-      const results = groupMatches
-        .filter((m) => m.homeTeam?.group === letter)
-        .map((m) => ({
-          homeTeamCode: m.homeTeam!.code,
-          awayTeamCode: m.awayTeam!.code,
-          homeScore: m.homeScore ?? 0,
-          awayScore: m.awayScore ?? 0,
-          groupLetter: letter,
-        }))
-      return computeGroupStandings(letter, teamCodes, teamMeta, results)
-    })
+    for (const m of allFinishedMatches) {
+      if (!m.homeTeam || !m.awayTeam) continue
+      // regularTimeHome/Away = goals at 90'+ET (no penalties); fall back to homeScore/awayScore for group matches
+      const hg = m.regularTimeHome ?? m.homeScore ?? 0
+      const ag = m.regularTimeAway ?? m.awayScore ?? 0
+      goalsFor[m.homeTeam.id] = (goalsFor[m.homeTeam.id] ?? 0) + hg
+      goalsFor[m.awayTeam.id] = (goalsFor[m.awayTeam.id] ?? 0) + ag
+      goalsAgainst[m.homeTeam.id] = (goalsAgainst[m.homeTeam.id] ?? 0) + ag
+      goalsAgainst[m.awayTeam.id] = (goalsAgainst[m.awayTeam.id] ?? 0) + hg
+    }
 
-    if (allStandings.length > 0) {
-      const maxGF = Math.max(...allStandings.map((t) => t.goalsFor))
-      const minGA = Math.min(...allStandings.map((t) => t.goalsAgainst))
+    const teamIds = Object.keys(goalsFor)
+    if (teamIds.length > 0) {
+      const maxGF = Math.max(...teamIds.map((id) => goalsFor[id] ?? 0))
+      const minGA = Math.min(...teamIds.map((id) => goalsAgainst[id] ?? 0))
 
-      const bestAttackCodes = allStandings.filter((t) => t.goalsFor === maxGF).map((t) => t.code)
-      const bestDefenseCodes = allStandings.filter((t) => t.goalsAgainst === minGA).map((t) => t.code)
-
-      initialBestAttackIds = teams.filter((t) => bestAttackCodes.includes(t.code)).map((t) => t.id)
-      initialBestDefenseIds = teams.filter((t) => bestDefenseCodes.includes(t.code)).map((t) => t.id)
+      initialBestAttackIds = teams.filter((t) => (goalsFor[t.id] ?? 0) === maxGF).map((t) => t.id)
+      initialBestDefenseIds = teams.filter((t) => (goalsAgainst[t.id] ?? 0) === minGA).map((t) => t.id)
     }
   }
 
