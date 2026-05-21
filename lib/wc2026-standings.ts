@@ -1,14 +1,49 @@
 /**
  * FIFA World Cup 2026 standings engine.
- * Applies official tiebreaker rules in order:
- * 1. Points
- * 2. Head-to-head points
- * 3. Head-to-head goal difference
- * 4. Head-to-head goals scored
- * 5. Overall goal difference
- * 6. Overall goals scored
- * 7. Fair play score (yellow=1, direct red=3, yellow+red=4)
- * 8. FIFA ranking (not stored — last resort, left as index)
+ *
+ * FORMAT
+ * ──────
+ * 48 teams, 12 groups of 4. Each team plays 3 matches (round-robin).
+ * Qualification: top 2 of each group (24) + best 8 third-placed teams = 32.
+ * Points: Win=3, Draw=1, Loss=0.
+ *
+ * TIE-BREAKERS (Article 13 — if two or more teams are level on points)
+ * ──────────────────────────────────────────────────────────────────────
+ * ÉTAPE 1 — HEAD-TO-HEAD (among the tied teams only)
+ *   1. Points in head-to-head matches
+ *   2. Goal difference in head-to-head matches
+ *   3. Goals scored in head-to-head matches
+ *   → If still tied, steps 1-3 are re-applied to the remaining sub-group
+ *
+ * ÉTAPE 2 — OVERALL GROUP PERFORMANCE
+ *   4. Overall goal difference
+ *   5. Overall goals scored
+ *   6. Fair-play score (NOT stored — treated as equal):
+ *        Yellow card       : -1 pt
+ *        2nd yellow (=red) : -3 pts
+ *        Direct red        : -4 pts
+ *        Yellow + direct   : -5 pts
+ *
+ * ÉTAPE 3 — FIFA RANKING
+ *   7. Latest published FIFA ranking (NOT stored — original order kept)
+ *      No draw by lot in 2026; FIFA ranking is the ultimate decider.
+ *
+ * BEST THIRD-PLACE TEAMS
+ * ──────────────────────
+ * The 8 best thirds (out of 12) qualify. Sorted by: pts → gd → gf → fair-play → FIFA ranking.
+ * Their assignment into the Round of 32 bracket follows the official FIFA table
+ * based on which groups the 8 thirds come from.
+ * ⚠️  The official FIFA assignment table for WC 2026 has NOT been published yet.
+ *     The mapping below (thirdSlots) is provisional and will need updating once
+ *     the official table is released.
+ *
+ * KNOCKOUT STAGE
+ * ──────────────
+ * Straight elimination. If level after 90 min:
+ *   1. Extra time: 2 × 15 min (105' and 120')
+ *   2. Penalty shootout: 5 kicks each, then sudden death
+ * Cooling breaks at ~30' and ~75' at referee's discretion (heat conditions).
+ * regularTimeHome/Away fields store the 90-min score for correct scoring.
  */
 
 export interface MatchResult {
@@ -189,8 +224,11 @@ export function resolveRoundOf32(
   const winner = (letter: string) => byGroup[letter]?.find((t) => t.position === 1) ?? null
   const runnerUp = (letter: string) => byGroup[letter]?.find((t) => t.position === 2) ?? null
 
-  // The 8 third-place slots and their candidate groups (match number → groups)
-  // Each third-place team will be assigned to exactly one slot.
+  // The 8 third-place slots and their candidate groups (match number → groups).
+  // Each third-place team is assigned to exactly one slot (bijective).
+  // ⚠️  PROVISIONAL — official FIFA WC 2026 table not yet published.
+  //     Update once FIFA releases the official assignment table.
+  //     In the meantime, the admin can manually assign teams via assignKnockoutTeam.
   const thirdSlots: Array<{ matchNumber: number; candidates: string[]; label: string }> = [
     { matchNumber: 74, candidates: ["A","B","C","D","F"], label: "3e A/B/C/D/F" },
     { matchNumber: 77, candidates: ["C","D","F","G","H"], label: "3e C/D/F/G/H" },
