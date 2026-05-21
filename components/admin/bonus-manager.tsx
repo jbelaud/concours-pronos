@@ -34,6 +34,7 @@ interface Props {
   initialTopScorerIds: string[]
   initialBestAttackIds: string[]
   initialBestDefenseIds: string[]
+  allMatchesFinished: boolean
 }
 
 // Single-select with search
@@ -328,6 +329,7 @@ export function BonusManager({
   initialTopScorerIds,
   initialBestAttackIds,
   initialBestDefenseIds,
+  allMatchesFinished,
 }: Props) {
   const [isPending, startTransition] = useTransition()
   const [applied, setApplied] = useState(false)
@@ -400,6 +402,16 @@ export function BonusManager({
         onToggle={toggleScorer}
         points={settings.pointsTopScorer}
       />
+
+      {/* Disclaimer si tous les matchs ne sont pas terminés */}
+      {!allMatchesFinished && (initialBestAttackIds.length > 0 || initialBestDefenseIds.length > 0) && (
+        <div className="flex items-start gap-2 p-3 rounded-xl bg-[var(--warning-dim)] border border-[var(--warning)]/30 text-xs text-[var(--warning)]">
+          <span className="shrink-0">⚠️</span>
+          <span>
+            Tous les matchs ne sont pas encore terminés. La meilleure attaque et la meilleure défense sont calculées sur les matchs joués jusqu&apos;ici — la sélection peut encore évoluer.
+          </span>
+        </div>
+      )}
 
       {/* Meilleure attaque — multi select */}
       <MultiTeamSelector

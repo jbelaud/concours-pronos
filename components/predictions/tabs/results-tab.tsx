@@ -70,10 +70,15 @@ export function ResultsTab({ matches, settings }: Props) {
         </div>
         <div className="grid grid-cols-4 gap-2 mb-3">
           <StatChip label="Pts gagnés" value={`+${totalPoints}`} color="accent" />
-          <StatChip label="Exact" value={String(exactCount)} color="success" />
+          <StatChip label="Score exact" value={String(exactCount)} color="success" />
           <StatChip label="Bon résultat" value={String(correctCount)} color="warning" />
           <StatChip label="Raté" value={String(wrongCount)} color="muted" />
         </div>
+        {pendingCount > 0 && (
+          <p className="text-[10px] text-[var(--foreground-subtle)] text-center -mt-1">
+            {pendingCount} match{pendingCount > 1 ? "s" : ""} en attente de résultat officiel
+          </p>
+        )}
         <ScoreLegend settings={settings} />
       </div>
 

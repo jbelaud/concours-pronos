@@ -76,11 +76,17 @@ export default async function BonusPage({ searchParams }: Props) {
   let initialBestAttackIds: string[] = []
   let initialBestDefenseIds: string[] = []
 
+  let allMatchesFinished = false
+
   if (contest) {
-    const allFinishedMatches = await db.match.findMany({
-      where: { contestId: contest.id, status: "FINISHED" },
-      include: { homeTeam: true, awayTeam: true },
-    })
+    const [totalMatches, allFinishedMatches] = await Promise.all([
+      db.match.count({ where: { contestId: contest.id } }),
+      db.match.findMany({
+        where: { contestId: contest.id, status: "FINISHED" },
+        include: { homeTeam: true, awayTeam: true },
+      }),
+    ])
+    allMatchesFinished = allFinishedMatches.length === totalMatches
 
     // Tally goals for/against per team, ignoring penalty shootout goals
     const goalsFor: Record<string, number> = {}
@@ -165,6 +171,7 @@ export default async function BonusPage({ searchParams }: Props) {
             initialTopScorerIds={currentTopScorerIds}
             initialBestAttackIds={initialBestAttackIds}
             initialBestDefenseIds={initialBestDefenseIds}
+            allMatchesFinished={allMatchesFinished}
           />
         </>
       )}
