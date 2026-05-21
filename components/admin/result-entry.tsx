@@ -30,6 +30,9 @@ export function ResultEntry({ match, matchday, knockoutScoringRule = "REGULAR_TI
   )
   const [isPending, startTransition] = useTransition()
   const [saved, setSaved] = useState(match.status === "FINISHED")
+  const [dirty, setDirty] = useState(false)
+
+  const markDirty = () => { setSaved(false); setDirty(true) }
 
   const handleSave = () => {
     startTransition(async () => {
@@ -46,6 +49,7 @@ export function ResultEntry({ match, matchday, knockoutScoringRule = "REGULAR_TI
         toast.error(String(result.error))
       } else {
         setSaved(true)
+        setDirty(false)
         toast.success(`Résultat enregistré : ${homeScore}–${awayScore}`)
         onSaved?.()
       }
@@ -85,9 +89,9 @@ export function ResultEntry({ match, matchday, knockoutScoringRule = "REGULAR_TI
             </span>
           )}
           <div className="flex items-center gap-1">
-            <ScoreStepper value={homeScore} onChange={(v) => { setHomeScore(v); setSaved(false) }} disabled={isPending} />
+            <ScoreStepper value={homeScore} onChange={(v) => { setHomeScore(v); markDirty() }} disabled={isPending} />
             <span className="text-[var(--foreground-muted)] font-bold text-xl mx-1">–</span>
-            <ScoreStepper value={awayScore} onChange={(v) => { setAwayScore(v); setSaved(false) }} disabled={isPending} />
+            <ScoreStepper value={awayScore} onChange={(v) => { setAwayScore(v); markDirty() }} disabled={isPending} />
           </div>
         </div>
 
@@ -104,7 +108,7 @@ export function ResultEntry({ match, matchday, knockoutScoringRule = "REGULAR_TI
         <div className="mt-3 flex flex-col gap-2">
           <button
             type="button"
-            onClick={() => { setHasExtraTime(!hasExtraTime); setSaved(false) }}
+            onClick={() => { setHasExtraTime(!hasExtraTime); markDirty() }}
             className={cn(
               "flex items-center gap-2 text-xs font-semibold py-1.5 px-3 rounded-lg transition-all",
               hasExtraTime
@@ -129,9 +133,9 @@ export function ResultEntry({ match, matchday, knockoutScoringRule = "REGULAR_TI
                 )}
               </p>
               <div className="flex items-center gap-2 justify-center">
-                <ScoreStepper value={rtHome} onChange={(v) => { setRtHome(v); setSaved(false) }} disabled={isPending} />
+                <ScoreStepper value={rtHome} onChange={(v) => { setRtHome(v); markDirty() }} disabled={isPending} />
                 <span className="text-[var(--foreground-muted)] font-bold text-xl mx-1">–</span>
-                <ScoreStepper value={rtAway} onChange={(v) => { setRtAway(v); setSaved(false) }} disabled={isPending} />
+                <ScoreStepper value={rtAway} onChange={(v) => { setRtAway(v); markDirty() }} disabled={isPending} />
               </div>
             </motion.div>
           )}
@@ -140,32 +144,34 @@ export function ResultEntry({ match, matchday, knockoutScoringRule = "REGULAR_TI
 
       {/* Action buttons */}
       <div className="flex gap-2 mt-4">
-        <button
-          onClick={handleSave}
-          disabled={isPending}
-          className={cn(
-            "flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-all",
-            saved
-              ? "bg-[var(--success-dim)] text-[var(--success)] border border-[var(--success)]/30"
-              : "bg-[var(--accent)] text-[var(--background)] hover:opacity-90 active:scale-95"
-          )}
-        >
-          {saved ? (
-            <>
+        {saved && !dirty ? (
+          /* Match déjà enregistré — afficher état + bouton corriger */
+          <div className="flex-1 flex items-center gap-2">
+            <div className="flex items-center gap-2 py-2.5 px-3 rounded-xl bg-[var(--success-dim)] text-[var(--success)] border border-[var(--success)]/30 text-sm font-semibold flex-1">
               <CheckCircle size={15} />
               Enregistré
-            </>
-          ) : isPending ? (
-            <span className="animate-pulse">Sauvegarde...</span>
-          ) : (
-            "Enregistrer"
-          )}
-        </button>
+            </div>
+            <button
+              onClick={markDirty}
+              className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold bg-[var(--surface-elevated)] text-[var(--foreground-muted)] hover:text-[var(--foreground)] border border-[var(--border)] transition-all shrink-0"
+            >
+              ✏️ Corriger
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={handleSave}
+            disabled={isPending}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-[var(--accent)] text-[var(--background)] hover:opacity-90 active:scale-95 disabled:opacity-70 transition-all"
+          >
+            {isPending ? <span className="animate-pulse">Sauvegarde...</span> : dirty ? "✅ Enregistrer la correction" : "Enregistrer"}
+          </button>
+        )}
 
         {onSaved && (
           <button
             onClick={() => {
-              if (!saved) handleSave()
+              if (dirty) handleSave()
               onSaved()
             }}
             disabled={isPending}

@@ -2,6 +2,7 @@ import { db } from "@/lib/db"
 import Link from "next/link"
 import { ClipboardCheck, Users, Plus } from "lucide-react"
 import { ContestStatusButton } from "@/components/admin/contest-status-button"
+import { RebuildLeaderboardButton } from "@/components/admin/rebuild-leaderboard-button"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = { title: "Admin" }
@@ -65,7 +66,7 @@ export default async function AdminPage() {
                 <StatusBadge status={contest.status} />
               </div>
 
-              <div className="flex gap-2 mt-3">
+              <div className="flex gap-2 mt-3 flex-wrap">
                 <ContestStatusButton contestId={contest.id} status={contest.status} />
                 <Link
                   href={`/admin/resultats?contestId=${contest.id}`}
@@ -74,6 +75,7 @@ export default async function AdminPage() {
                   <ClipboardCheck size={13} />
                   Résultats
                 </Link>
+                <RebuildLeaderboardButton contestId={contest.id} />
               </div>
             </div>
           ))}

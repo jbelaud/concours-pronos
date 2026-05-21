@@ -178,6 +178,14 @@ export async function createContest(data: {
   return { success: true as const, contestId: contest.id }
 }
 
+export async function forceRebuildLeaderboard(contestId: string) {
+  await requireAdmin()
+  await rebuildLeaderboard(contestId)
+  revalidatePath("/classement")
+  revalidatePath("/admin")
+  return { success: true }
+}
+
 export async function updateContestStatus(contestId: string, status: "DRAFT" | "REGISTRATION" | "ONGOING" | "FINISHED") {
   await requireAdmin()
   await db.contest.update({ where: { id: contestId }, data: { status } })
@@ -742,5 +750,52 @@ export async function markScorerWinner(data: {
   await rebuildLeaderboard(data.contestId)
 
   revalidatePath("/admin")
+  return { success: true }
+}
+
+export async function applyBonusResults(data: {
+  contestId: string
+  winnerId: string | null
+  topScorerIds: string[]      // plusieurs gagnants ex aequo possibles
+  bestAttackId: string | null
+  bestDefenseId: string | null
+}) {
+  await requireAdmin()
+
+  const settings = await db.contestSettings.findUnique({ where: { contestId: data.contestId } })
+  if (!settings) return { error: "Paramètres du concours introuvables." }
+
+  const allPredictions = await db.tournamentPrediction.findMany({
+    where: { contestId: data.contestId },
+  })
+
+  await Promise.all(
+    allPredictions.map(async (pred) => {
+      let points = 0
+
+      if (data.winnerId && pred.winnerId === data.winnerId) {
+        points += settings.pointsWinner
+      }
+      if (data.topScorerIds.length > 0 && pred.topScorerId && data.topScorerIds.includes(pred.topScorerId)) {
+        points += settings.pointsTopScorer
+      }
+      if (data.bestAttackId && pred.bestAttackId === data.bestAttackId) {
+        points += settings.pointsBestAttack
+      }
+      if (data.bestDefenseId && pred.bestDefenseId === data.bestDefenseId) {
+        points += settings.pointsBestDefense
+      }
+
+      await db.tournamentPrediction.update({
+        where: { id: pred.id },
+        data: { points },
+      })
+    })
+  )
+
+  await rebuildLeaderboard(data.contestId)
+
+  revalidatePath("/admin/bonus")
+  revalidatePath("/classement")
   return { success: true }
 }
