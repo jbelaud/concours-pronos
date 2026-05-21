@@ -80,24 +80,43 @@ function resolveRoundOf32(allGroupStandings, bestThirds) {
   const byGroup = Object.fromEntries(allGroupStandings.map(g => [g.letter, g.teams]))
   const winner = (l) => byGroup[l]?.find(t => t.position === 1) ?? null
   const runnerUp = (l) => byGroup[l]?.find(t => t.position === 2) ?? null
-  const bestThirdFrom = (groups) => bestThirds.find(t => groups.includes(t.groupLetter)) ?? null
+
+  // Assign each best-third to exactly one slot (bijective)
+  const thirdSlots = [
+    { matchNumber: 74, candidates: ["A","B","C","D","F"] },
+    { matchNumber: 77, candidates: ["C","D","F","G","H"] },
+    { matchNumber: 79, candidates: ["C","E","F","H","I"] },
+    { matchNumber: 80, candidates: ["E","H","I","J","K"] },
+    { matchNumber: 81, candidates: ["B","E","F","I","J"] },
+    { matchNumber: 82, candidates: ["A","E","H","I","J"] },
+    { matchNumber: 85, candidates: ["E","F","G","I","J"] },
+    { matchNumber: 87, candidates: ["D","E","I","J","L"] },
+  ]
+  const usedGroups = new Set()
+  const thirdAssignment = new Map()
+  for (const slot of thirdSlots) {
+    const match = bestThirds.find(t => slot.candidates.includes(t.groupLetter) && !usedGroups.has(t.groupLetter)) ?? null
+    thirdAssignment.set(slot.matchNumber, match)
+    if (match) usedGroups.add(match.groupLetter)
+  }
+  const thirdFor = (n) => thirdAssignment.get(n) ?? null
 
   return [
     { matchNumber: 73, homeSlot: () => runnerUp("A"), awaySlot: () => runnerUp("B") },
-    { matchNumber: 74, homeSlot: () => winner("E"),   awaySlot: () => bestThirdFrom(["A","B","C","D","F"]) },
+    { matchNumber: 74, homeSlot: () => winner("E"),   awaySlot: () => thirdFor(74) },
     { matchNumber: 75, homeSlot: () => winner("F"),   awaySlot: () => runnerUp("C") },
     { matchNumber: 76, homeSlot: () => winner("C"),   awaySlot: () => runnerUp("F") },
-    { matchNumber: 77, homeSlot: () => winner("I"),   awaySlot: () => bestThirdFrom(["C","D","F","G","H"]) },
+    { matchNumber: 77, homeSlot: () => winner("I"),   awaySlot: () => thirdFor(77) },
     { matchNumber: 78, homeSlot: () => runnerUp("E"), awaySlot: () => runnerUp("I") },
-    { matchNumber: 79, homeSlot: () => winner("A"),   awaySlot: () => bestThirdFrom(["C","E","F","H","I"]) },
-    { matchNumber: 80, homeSlot: () => winner("L"),   awaySlot: () => bestThirdFrom(["E","H","I","J","K"]) },
-    { matchNumber: 81, homeSlot: () => winner("D"),   awaySlot: () => bestThirdFrom(["B","E","F","I","J"]) },
-    { matchNumber: 82, homeSlot: () => winner("G"),   awaySlot: () => bestThirdFrom(["A","E","H","I","J"]) },
+    { matchNumber: 79, homeSlot: () => winner("A"),   awaySlot: () => thirdFor(79) },
+    { matchNumber: 80, homeSlot: () => winner("L"),   awaySlot: () => thirdFor(80) },
+    { matchNumber: 81, homeSlot: () => winner("D"),   awaySlot: () => thirdFor(81) },
+    { matchNumber: 82, homeSlot: () => winner("G"),   awaySlot: () => thirdFor(82) },
     { matchNumber: 83, homeSlot: () => runnerUp("K"), awaySlot: () => runnerUp("L") },
     { matchNumber: 84, homeSlot: () => winner("H"),   awaySlot: () => runnerUp("J") },
-    { matchNumber: 85, homeSlot: () => winner("B"),   awaySlot: () => bestThirdFrom(["E","F","G","I","J"]) },
+    { matchNumber: 85, homeSlot: () => winner("B"),   awaySlot: () => thirdFor(85) },
     { matchNumber: 86, homeSlot: () => winner("J"),   awaySlot: () => runnerUp("H") },
-    { matchNumber: 87, homeSlot: () => winner("K"),   awaySlot: () => bestThirdFrom(["D","E","I","J","L"]) },
+    { matchNumber: 87, homeSlot: () => winner("K"),   awaySlot: () => thirdFor(87) },
     { matchNumber: 88, homeSlot: () => runnerUp("D"), awaySlot: () => runnerUp("G") },
   ].map(({ matchNumber, homeSlot, awaySlot }) => ({
     matchNumber,

@@ -172,6 +172,13 @@ export interface ResolvedMatchup {
 /**
  * For each Round of 32 match, determine which teams play based on current standings.
  * Returns resolved codes when known, null otherwise.
+ *
+ * The 8 third-place slots follow the FIFA WC 2026 bracket assignment table.
+ * Each best-third team is assigned to exactly one slot — no duplicates possible.
+ *
+ * Assignment table (which groups' thirds go to which match):
+ * The slot candidates per match are fixed; we assign greedily in slot order,
+ * consuming each 3rd-place team exactly once.
  */
 export function resolveRoundOf32(
   allGroupStandings: GroupStandings[],
@@ -182,15 +189,36 @@ export function resolveRoundOf32(
   const winner = (letter: string) => byGroup[letter]?.find((t) => t.position === 1) ?? null
   const runnerUp = (letter: string) => byGroup[letter]?.find((t) => t.position === 2) ?? null
 
-  // Best 8 thirds by group letter
-  const bestThirdLetters = new Set(bestThirds.map((t) => t.groupLetter))
+  // The 8 third-place slots and their candidate groups (match number → groups)
+  // Each third-place team will be assigned to exactly one slot.
+  const thirdSlots: Array<{ matchNumber: number; candidates: string[]; label: string }> = [
+    { matchNumber: 74, candidates: ["A","B","C","D","F"], label: "3e A/B/C/D/F" },
+    { matchNumber: 77, candidates: ["C","D","F","G","H"], label: "3e C/D/F/G/H" },
+    { matchNumber: 79, candidates: ["C","E","F","H","I"], label: "3e C/E/F/H/I" },
+    { matchNumber: 80, candidates: ["E","H","I","J","K"], label: "3e E/H/I/J/K" },
+    { matchNumber: 81, candidates: ["B","E","F","I","J"], label: "3e B/E/F/I/J" },
+    { matchNumber: 82, candidates: ["A","E","H","I","J"], label: "3e A/E/H/I/J" },
+    { matchNumber: 85, candidates: ["E","F","G","I","J"], label: "3e E/F/G/I/J" },
+    { matchNumber: 87, candidates: ["D","E","I","J","L"], label: "3e D/E/I/J/L" },
+  ]
 
-  // Find which best-third team comes from a set of candidate groups
-  const bestThirdFrom = (candidateGroups: string[]): TeamStanding | null => {
-    return bestThirds.find((t) => candidateGroups.includes(t.groupLetter)) ?? null
+  // Assign best-thirds to slots: each third used exactly once.
+  // We iterate slots in order; for each slot, pick the best available third
+  // whose group is in the candidates list.
+  const usedGroups = new Set<string>()
+  const thirdAssignment = new Map<number, TeamStanding | null>() // matchNumber → team
+
+  for (const slot of thirdSlots) {
+    const match = bestThirds.find(
+      (t) => slot.candidates.includes(t.groupLetter) && !usedGroups.has(t.groupLetter)
+    ) ?? null
+    thirdAssignment.set(slot.matchNumber, match)
+    if (match) usedGroups.add(match.groupLetter)
   }
 
-  // Fixed bracket — match number → [homeSlot, awaySlot]
+  const thirdFor = (matchNumber: number) => thirdAssignment.get(matchNumber) ?? null
+
+  // Fixed bracket
   const matchups: Array<{
     matchNumber: number
     homeSlot: () => TeamStanding | null
@@ -198,22 +226,22 @@ export function resolveRoundOf32(
     homeLabel: string
     awayLabel: string
   }> = [
-    { matchNumber: 73, homeLabel: "2e Gr. A", awayLabel: "2e Gr. B", homeSlot: () => runnerUp("A"), awaySlot: () => runnerUp("B") },
-    { matchNumber: 74, homeLabel: "1er Gr. E", awayLabel: "3e A/B/C/D/F", homeSlot: () => winner("E"), awaySlot: () => bestThirdFrom(["A","B","C","D","F"]) },
-    { matchNumber: 75, homeLabel: "1er Gr. F", awayLabel: "2e Gr. C", homeSlot: () => winner("F"), awaySlot: () => runnerUp("C") },
-    { matchNumber: 76, homeLabel: "1er Gr. C", awayLabel: "2e Gr. F", homeSlot: () => winner("C"), awaySlot: () => runnerUp("F") },
-    { matchNumber: 77, homeLabel: "1er Gr. I", awayLabel: "3e C/D/F/G/H", homeSlot: () => winner("I"), awaySlot: () => bestThirdFrom(["C","D","F","G","H"]) },
-    { matchNumber: 78, homeLabel: "2e Gr. E", awayLabel: "2e Gr. I", homeSlot: () => runnerUp("E"), awaySlot: () => runnerUp("I") },
-    { matchNumber: 79, homeLabel: "1er Gr. A", awayLabel: "3e C/E/F/H/I", homeSlot: () => winner("A"), awaySlot: () => bestThirdFrom(["C","E","F","H","I"]) },
-    { matchNumber: 80, homeLabel: "1er Gr. L", awayLabel: "3e E/H/I/J/K", homeSlot: () => winner("L"), awaySlot: () => bestThirdFrom(["E","H","I","J","K"]) },
-    { matchNumber: 81, homeLabel: "1er Gr. D", awayLabel: "3e B/E/F/I/J", homeSlot: () => winner("D"), awaySlot: () => bestThirdFrom(["B","E","F","I","J"]) },
-    { matchNumber: 82, homeLabel: "1er Gr. G", awayLabel: "3e A/E/H/I/J", homeSlot: () => winner("G"), awaySlot: () => bestThirdFrom(["A","E","H","I","J"]) },
-    { matchNumber: 83, homeLabel: "2e Gr. K", awayLabel: "2e Gr. L", homeSlot: () => runnerUp("K"), awaySlot: () => runnerUp("L") },
-    { matchNumber: 84, homeLabel: "1er Gr. H", awayLabel: "2e Gr. J", homeSlot: () => winner("H"), awaySlot: () => runnerUp("J") },
-    { matchNumber: 85, homeLabel: "1er Gr. B", awayLabel: "3e E/F/G/I/J", homeSlot: () => winner("B"), awaySlot: () => bestThirdFrom(["E","F","G","I","J"]) },
-    { matchNumber: 86, homeLabel: "1er Gr. J", awayLabel: "2e Gr. H", homeSlot: () => winner("J"), awaySlot: () => runnerUp("H") },
-    { matchNumber: 87, homeLabel: "1er Gr. K", awayLabel: "3e D/E/I/J/L", homeSlot: () => winner("K"), awaySlot: () => bestThirdFrom(["D","E","I","J","L"]) },
-    { matchNumber: 88, homeLabel: "2e Gr. D", awayLabel: "2e Gr. G", homeSlot: () => runnerUp("D"), awaySlot: () => runnerUp("G") },
+    { matchNumber: 73, homeLabel: "2e Gr. A",  awayLabel: "2e Gr. B",       homeSlot: () => runnerUp("A"), awaySlot: () => runnerUp("B") },
+    { matchNumber: 74, homeLabel: "1er Gr. E", awayLabel: "3e A/B/C/D/F",   homeSlot: () => winner("E"),   awaySlot: () => thirdFor(74) },
+    { matchNumber: 75, homeLabel: "1er Gr. F", awayLabel: "2e Gr. C",        homeSlot: () => winner("F"),   awaySlot: () => runnerUp("C") },
+    { matchNumber: 76, homeLabel: "1er Gr. C", awayLabel: "2e Gr. F",        homeSlot: () => winner("C"),   awaySlot: () => runnerUp("F") },
+    { matchNumber: 77, homeLabel: "1er Gr. I", awayLabel: "3e C/D/F/G/H",   homeSlot: () => winner("I"),   awaySlot: () => thirdFor(77) },
+    { matchNumber: 78, homeLabel: "2e Gr. E",  awayLabel: "2e Gr. I",        homeSlot: () => runnerUp("E"), awaySlot: () => runnerUp("I") },
+    { matchNumber: 79, homeLabel: "1er Gr. A", awayLabel: "3e C/E/F/H/I",   homeSlot: () => winner("A"),   awaySlot: () => thirdFor(79) },
+    { matchNumber: 80, homeLabel: "1er Gr. L", awayLabel: "3e E/H/I/J/K",   homeSlot: () => winner("L"),   awaySlot: () => thirdFor(80) },
+    { matchNumber: 81, homeLabel: "1er Gr. D", awayLabel: "3e B/E/F/I/J",   homeSlot: () => winner("D"),   awaySlot: () => thirdFor(81) },
+    { matchNumber: 82, homeLabel: "1er Gr. G", awayLabel: "3e A/E/H/I/J",   homeSlot: () => winner("G"),   awaySlot: () => thirdFor(82) },
+    { matchNumber: 83, homeLabel: "2e Gr. K",  awayLabel: "2e Gr. L",        homeSlot: () => runnerUp("K"), awaySlot: () => runnerUp("L") },
+    { matchNumber: 84, homeLabel: "1er Gr. H", awayLabel: "2e Gr. J",        homeSlot: () => winner("H"),   awaySlot: () => runnerUp("J") },
+    { matchNumber: 85, homeLabel: "1er Gr. B", awayLabel: "3e E/F/G/I/J",   homeSlot: () => winner("B"),   awaySlot: () => thirdFor(85) },
+    { matchNumber: 86, homeLabel: "1er Gr. J", awayLabel: "2e Gr. H",        homeSlot: () => winner("J"),   awaySlot: () => runnerUp("H") },
+    { matchNumber: 87, homeLabel: "1er Gr. K", awayLabel: "3e D/E/I/J/L",   homeSlot: () => winner("K"),   awaySlot: () => thirdFor(87) },
+    { matchNumber: 88, homeLabel: "2e Gr. D",  awayLabel: "2e Gr. G",        homeSlot: () => runnerUp("D"), awaySlot: () => runnerUp("G") },
   ]
 
   return matchups.map(({ matchNumber, homeSlot, awaySlot, homeLabel, awayLabel }) => {
