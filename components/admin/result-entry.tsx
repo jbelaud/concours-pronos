@@ -5,7 +5,7 @@ import { motion } from "framer-motion"
 import { CheckCircle, ChevronRight, Info } from "lucide-react"
 import { ScoreStepper } from "@/components/predictions/score-stepper"
 import { saveMatchResult } from "@/actions/admin.actions"
-import { formatKickoff, cn } from "@/lib/utils"
+import { formatKickoff, cn, parseKnockoutLabel } from "@/lib/utils"
 import type { MatchWithTeams } from "@/types"
 import { toast } from "sonner"
 
@@ -52,6 +52,8 @@ export function ResultEntry({ match, matchday, knockoutScoringRule = "REGULAR_TI
     })
   }
 
+  const knockoutSlots = !match.homeTeamId ? parseKnockoutLabel(match.knockoutLabel ?? null) : null
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -70,9 +72,9 @@ export function ResultEntry({ match, matchday, knockoutScoringRule = "REGULAR_TI
       {/* Teams & score entry — Score final */}
       <div className="flex items-center gap-2">
         <div className="flex-1 flex flex-col items-center gap-1">
-          <span className="text-2xl">{match.homeTeam?.flagEmoji ?? "🏳️"}</span>
-          <span className="text-xs font-bold text-center truncate max-w-[72px]">
-            {match.homeTeam?.name ?? "À définir"}
+          <span className="text-2xl">{match.homeTeam?.flagEmoji ?? "🏆"}</span>
+          <span className={`text-xs font-bold text-center truncate max-w-[72px] ${!match.homeTeam ? "text-[var(--foreground-muted)]" : ""}`}>
+            {match.homeTeam?.name ?? knockoutSlots?.[0] ?? "?"}
           </span>
         </div>
 
@@ -90,9 +92,9 @@ export function ResultEntry({ match, matchday, knockoutScoringRule = "REGULAR_TI
         </div>
 
         <div className="flex-1 flex flex-col items-center gap-1">
-          <span className="text-2xl">{match.awayTeam?.flagEmoji ?? "🏳️"}</span>
-          <span className="text-xs font-bold text-center truncate max-w-[72px]">
-            {match.awayTeam?.name ?? "À définir"}
+          <span className="text-2xl">{match.awayTeam?.flagEmoji ?? "🏆"}</span>
+          <span className={`text-xs font-bold text-center truncate max-w-[72px] ${!match.awayTeam ? "text-[var(--foreground-muted)]" : ""}`}>
+            {match.awayTeam?.name ?? knockoutSlots?.[1] ?? "?"}
           </span>
         </div>
       </div>

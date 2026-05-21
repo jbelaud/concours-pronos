@@ -91,6 +91,55 @@ export const PHASE_LABELS: Record<string, string> = {
   THIRD_PLACE: "Match pour la 3e place",
 }
 
+/**
+ * Transforms a raw knockoutLabel slot into human-readable French.
+ * Examples:
+ *   "2A" → "2e Gr. A"
+ *   "1E" → "1er Gr. E"
+ *   "3e A/B/C/D/F" → "3e des gr. A/B/C/D/F"
+ *   "Vainqueur 74" → "Vaiq. M74"
+ *   "Vainqueur QF1" → "Vaiq. QF1"
+ */
+export function formatKnockoutSlot(raw: string): string {
+  const s = raw.trim()
+
+  // "1X" or "2X" where X is a group letter
+  const rankGroup = s.match(/^([12])([A-L])$/)
+  if (rankGroup) {
+    const rank = rankGroup[1] === "1" ? "1er" : "2e"
+    return `${rank} Gr. ${rankGroup[2]}`
+  }
+
+  // "3e X/Y/..." — best third-placed from list of groups
+  const third = s.match(/^3e\s+([A-L\/]+)$/)
+  if (third) {
+    return `3e gr. ${third[1]}`
+  }
+
+  // "Vainqueur 74" or "Vainqueur QF1" etc.
+  const winner = s.match(/^Vainqueur\s+(.+)$/)
+  if (winner) {
+    return `Vaiq. ${winner[1]}`
+  }
+
+  return s
+}
+
+/**
+ * Splits a raw knockoutLabel like "2A vs 1E vs 3e A/B/C/D/F"
+ * into [homeSlot, awaySlot] readable strings.
+ */
+export function parseKnockoutLabel(label: string | null): [string, string] | null {
+  if (!label) return null
+  // Remove prefixes like "QF1 - " or "SF1 - "
+  const cleaned = label.replace(/^[A-Z]+\d+\s*-\s*/, "")
+  const parts = cleaned.split(/\s+vs\s+/i)
+  if (parts.length === 2) {
+    return [formatKnockoutSlot(parts[0]), formatKnockoutSlot(parts[1])]
+  }
+  return null
+}
+
 export const PHASE_ORDER: Record<string, number> = {
   GROUP: 1,
   ROUND_OF_32: 2,

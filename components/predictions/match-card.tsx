@@ -5,7 +5,7 @@ import { motion } from "framer-motion"
 import { Lock, CheckCircle, AlertCircle } from "lucide-react"
 import { ScoreStepper } from "./score-stepper"
 import { upsertPrediction } from "@/actions/predictions.actions"
-import { formatKickoff, formatTime, isMatchLocked, cn } from "@/lib/utils"
+import { formatKickoff, formatTime, isMatchLocked, cn, parseKnockoutLabel } from "@/lib/utils"
 import type { MatchWithPrediction } from "@/types"
 import { toast } from "sonner"
 
@@ -64,6 +64,9 @@ export function MatchCard({
     [save, saveTimer]
   )
 
+  // For knockout matches without teams yet, show descriptive slot labels
+  const knockoutSlots = !match.homeTeamId ? parseKnockoutLabel(match.knockoutLabel ?? null) : null
+
   const predictionStatus = match.prediction?.status
 
   const statusColor = {
@@ -108,9 +111,9 @@ export function MatchCard({
 
         {/* Équipe domicile */}
         <div className="flex-1 flex flex-col items-center gap-1 min-w-0">
-          <span className="text-2xl leading-none">{match.homeTeam?.flagEmoji ?? "🏳️"}</span>
-          <span className="text-[11px] font-semibold text-[var(--foreground)] text-center leading-tight w-full truncate px-1">
-            {match.homeTeam?.name ?? "À définir"}
+          <span className="text-2xl leading-none">{match.homeTeam?.flagEmoji ?? "🏆"}</span>
+          <span className={`text-[11px] font-semibold text-center leading-tight w-full truncate px-1 ${match.homeTeam ? "text-[var(--foreground)]" : "text-[var(--foreground-muted)]"}`}>
+            {match.homeTeam?.name ?? knockoutSlots?.[0] ?? "?"}
           </span>
         </div>
 
@@ -155,9 +158,9 @@ export function MatchCard({
 
         {/* Équipe extérieur */}
         <div className="flex-1 flex flex-col items-center gap-1 min-w-0">
-          <span className="text-2xl leading-none">{match.awayTeam?.flagEmoji ?? "🏳️"}</span>
-          <span className="text-[11px] font-semibold text-[var(--foreground)] text-center leading-tight w-full truncate px-1">
-            {match.awayTeam?.name ?? "À définir"}
+          <span className="text-2xl leading-none">{match.awayTeam?.flagEmoji ?? "🏆"}</span>
+          <span className={`text-[11px] font-semibold text-center leading-tight w-full truncate px-1 ${match.awayTeam ? "text-[var(--foreground)]" : "text-[var(--foreground-muted)]"}`}>
+            {match.awayTeam?.name ?? knockoutSlots?.[1] ?? "?"}
           </span>
         </div>
 
