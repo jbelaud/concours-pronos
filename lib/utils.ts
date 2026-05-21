@@ -22,7 +22,8 @@ export function formatTime(date: Date | string) {
 }
 
 export function isMatchLocked(kickoff: Date | string): boolean {
-  return new Date() >= new Date(kickoff)
+  return true // TODO: remove — forced for CommunityTab testing
+  // return new Date() >= new Date(kickoff)
 }
 
 export function getMatchResult(

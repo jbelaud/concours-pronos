@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { motion } from "framer-motion"
-import { CheckCircle, ChevronRight } from "lucide-react"
+import { CheckCircle, ChevronRight, Info } from "lucide-react"
 import { ScoreStepper } from "@/components/predictions/score-stepper"
 import { saveMatchResult } from "@/actions/admin.actions"
 import { formatKickoff, cn } from "@/lib/utils"
@@ -10,14 +10,24 @@ import type { MatchWithTeams } from "@/types"
 import { toast } from "sonner"
 
 interface ResultEntryProps {
-  match: MatchWithTeams
+  match: MatchWithTeams & { regularTimeHome?: number | null; regularTimeAway?: number | null }
   matchday: number
+  knockoutScoringRule?: "REGULAR_TIME" | "FULL_TIME"
   onSaved?: () => void
 }
 
-export function ResultEntry({ match, matchday, onSaved }: ResultEntryProps) {
+const isKnockoutPhase = (phase: string) => phase !== "GROUP"
+
+export function ResultEntry({ match, matchday, knockoutScoringRule = "REGULAR_TIME", onSaved }: ResultEntryProps) {
+  const isKnockout = isKnockoutPhase(match.phase)
+
   const [homeScore, setHomeScore] = useState(match.homeScore ?? 0)
   const [awayScore, setAwayScore] = useState(match.awayScore ?? 0)
+  const [rtHome, setRtHome] = useState(match.regularTimeHome ?? 0)
+  const [rtAway, setRtAway] = useState(match.regularTimeAway ?? 0)
+  const [hasExtraTime, setHasExtraTime] = useState(
+    !!(match.regularTimeHome !== null && match.regularTimeAway !== null)
+  )
   const [isPending, startTransition] = useTransition()
   const [saved, setSaved] = useState(match.status === "FINISHED")
 
@@ -27,6 +37,8 @@ export function ResultEntry({ match, matchday, onSaved }: ResultEntryProps) {
         matchId: match.id,
         homeScore,
         awayScore,
+        regularTimeHome: isKnockout && hasExtraTime ? rtHome : undefined,
+        regularTimeAway: isKnockout && hasExtraTime ? rtAway : undefined,
         matchday,
       })
 
@@ -55,7 +67,7 @@ export function ResultEntry({ match, matchday, onSaved }: ResultEntryProps) {
         {formatKickoff(match.kickoff)}
       </div>
 
-      {/* Teams & score entry */}
+      {/* Teams & score entry — Score final */}
       <div className="flex items-center gap-2">
         <div className="flex-1 flex flex-col items-center gap-1">
           <span className="text-2xl">{match.homeTeam?.flagEmoji ?? "🏳️"}</span>
@@ -64,10 +76,17 @@ export function ResultEntry({ match, matchday, onSaved }: ResultEntryProps) {
           </span>
         </div>
 
-        <div className="flex items-center gap-1">
-          <ScoreStepper value={homeScore} onChange={setHomeScore} disabled={isPending} />
-          <span className="text-[var(--foreground-muted)] font-bold text-xl mx-1">–</span>
-          <ScoreStepper value={awayScore} onChange={setAwayScore} disabled={isPending} />
+        <div className="flex flex-col items-center gap-1">
+          {isKnockout && (
+            <span className="text-[10px] text-[var(--foreground-subtle)] mb-1">
+              {hasExtraTime ? "Score final" : "Score (90')"}
+            </span>
+          )}
+          <div className="flex items-center gap-1">
+            <ScoreStepper value={homeScore} onChange={(v) => { setHomeScore(v); setSaved(false) }} disabled={isPending} />
+            <span className="text-[var(--foreground-muted)] font-bold text-xl mx-1">–</span>
+            <ScoreStepper value={awayScore} onChange={(v) => { setAwayScore(v); setSaved(false) }} disabled={isPending} />
+          </div>
         </div>
 
         <div className="flex-1 flex flex-col items-center gap-1">
@@ -77,6 +96,45 @@ export function ResultEntry({ match, matchday, onSaved }: ResultEntryProps) {
           </span>
         </div>
       </div>
+
+      {/* Toggle prolongations (knockout uniquement) */}
+      {isKnockout && (
+        <div className="mt-3 flex flex-col gap-2">
+          <button
+            type="button"
+            onClick={() => { setHasExtraTime(!hasExtraTime); setSaved(false) }}
+            className={cn(
+              "flex items-center gap-2 text-xs font-semibold py-1.5 px-3 rounded-lg transition-all",
+              hasExtraTime
+                ? "bg-[var(--accent-dim)] text-[var(--accent)] border border-[var(--accent)]/30"
+                : "bg-[var(--surface-elevated)] text-[var(--foreground-muted)] border border-[var(--border)]"
+            )}
+          >
+            ⏱️ {hasExtraTime ? "Prolongations activées" : "Match nul → Prolongations ?"}
+          </button>
+
+          {hasExtraTime && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              className="flex flex-col gap-2 p-3 bg-[var(--surface-elevated)] rounded-xl border border-[var(--border)]"
+            >
+              <p className="text-[10px] text-[var(--foreground-muted)] flex items-center gap-1">
+                <Info size={10} />
+                Score à 90&apos; (avant prolongations)
+                {knockoutScoringRule === "REGULAR_TIME" && (
+                  <span className="text-[var(--accent)] ml-1">· Utilisé pour les pronostics</span>
+                )}
+              </p>
+              <div className="flex items-center gap-2 justify-center">
+                <ScoreStepper value={rtHome} onChange={(v) => { setRtHome(v); setSaved(false) }} disabled={isPending} />
+                <span className="text-[var(--foreground-muted)] font-bold text-xl mx-1">–</span>
+                <ScoreStepper value={rtAway} onChange={(v) => { setRtAway(v); setSaved(false) }} disabled={isPending} />
+              </div>
+            </motion.div>
+          )}
+        </div>
+      )}
 
       {/* Action buttons */}
       <div className="flex gap-2 mt-4">

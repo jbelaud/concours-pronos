@@ -1,5 +1,5 @@
 import { db } from "@/lib/db"
-import { calculateMatchPoints } from "@/lib/scoring"
+import { calculateMatchPointsWithRule } from "@/lib/scoring"
 
 /**
  * Recalculates all predictions for a finished match and updates the leaderboard.
@@ -23,13 +23,19 @@ export async function recalculateMatchPredictions(
 
   await Promise.all(
     match.predictions.map(async (pred) => {
-      const result = calculateMatchPoints(
+      const result = calculateMatchPointsWithRule(
         pred.homeScore,
         pred.awayScore,
-        match.homeScore!,
-        match.awayScore!,
+        {
+          homeScore: match.homeScore,
+          awayScore: match.awayScore,
+          regularTimeHome: match.regularTimeHome,
+          regularTimeAway: match.regularTimeAway,
+          phase: match.phase,
+        },
         settings
       )
+      if (!result) return
       await db.prediction.update({
         where: { id: pred.id },
         data: { points: result.points, status: result.status },

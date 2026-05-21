@@ -138,6 +138,7 @@ model Contest {
   status              ContestStatus @default(DRAFT)
   templateId          String
   buyIn               Float         @default(0)
+  isFree              Boolean       @default(false)
   inviteToken         String?       @unique @default(cuid())
   allowPublicJoin     Boolean       @default(true)
   iban                String?
@@ -177,20 +178,28 @@ model ContestParticipant {
 // Contest Settings
 // ---------------------------------------------------------------------------
 
+// REGULAR_TIME = pronostic basé sur le score à 90' seulement
+// FULL_TIME     = pronostic basé sur le score final (incl. prolongations)
+enum KnockoutScoringRule {
+  REGULAR_TIME
+  FULL_TIME
+}
+
 model ContestSettings {
-  id                  String @id @default(cuid())
-  contestId           String @unique
-  pointsCorrectResult Int    @default(3)
-  pointsExactScore    Int    @default(1)
-  pointsWrongResult   Int    @default(0)
-  pointsWinner        Int    @default(10)
-  pointsTopScorer     Int    @default(5)
-  pointsBestAttack    Int    @default(3)
-  pointsBestDefense   Int    @default(3)
-  pointsGroupFirst    Int    @default(2)
-  pointsGroupSecond   Int    @default(1)
-  tieBreaker1         String @default("exactScores")
-  tieBreaker2         String @default("correctResults")
+  id                   String               @id @default(cuid())
+  contestId            String               @unique
+  pointsCorrectResult  Int                  @default(3)
+  pointsExactScore     Int                  @default(1)
+  pointsWrongResult    Int                  @default(0)
+  pointsWinner         Int                  @default(10)
+  pointsTopScorer      Int                  @default(5)
+  pointsBestAttack     Int                  @default(3)
+  pointsBestDefense    Int                  @default(3)
+  pointsGroupFirst     Int                  @default(2)
+  pointsGroupSecond    Int                  @default(1)
+  tieBreaker1          String               @default("exactScores")
+  tieBreaker2          String               @default("correctResults")
+  knockoutScoringRule  KnockoutScoringRule  @default(REGULAR_TIME)
 
   contest Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)
 }
@@ -294,19 +303,21 @@ enum MatchStatus {
 }
 
 model Match {
-  id            String      @id @default(cuid())
-  contestId     String
-  matchNumber   Int
-  phase         MatchPhase
-  kickoff       DateTime
-  venue         String?
-  homeTeamId    String?
-  awayTeamId    String?
-  homeScore     Int?
-  awayScore     Int?
-  status        MatchStatus @default(SCHEDULED)
-  groupLetter   String?
-  knockoutLabel String?
+  id                 String      @id @default(cuid())
+  contestId          String
+  matchNumber        Int
+  phase              MatchPhase
+  kickoff            DateTime
+  venue              String?
+  homeTeamId         String?
+  awayTeamId         String?
+  homeScore          Int?
+  awayScore          Int?
+  regularTimeHome    Int?
+  regularTimeAway    Int?
+  status             MatchStatus @default(SCHEDULED)
+  groupLetter        String?
+  knockoutLabel      String?
 
   contest     Contest      @relation(fields: [contestId], references: [id], onDelete: Cascade)
   homeTeam    Team?        @relation("HomeTeam", fields: [homeTeamId], references: [id])

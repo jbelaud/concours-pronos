@@ -28,10 +28,10 @@ export default async function PronosticsPage() {
     )
   }
 
-  // Matchs + mes pronostics
+  // TOUS les matchs — y compris knockout sans équipes (pour permettre les pronostics anticipés)
   const matches = await db.match.findMany({
-    where: { contestId: contest.id, homeTeamId: { not: null } },
-    orderBy: { kickoff: "asc" },
+    where: { contestId: contest.id },
+    orderBy: [{ phase: "asc" }, { kickoff: "asc" }, { matchNumber: "asc" }],
     include: {
       homeTeam: true,
       awayTeam: true,
@@ -45,8 +45,11 @@ export default async function PronosticsPage() {
     isLocked: isMatchLocked(m.kickoff),
   }))
 
-  // Pronostics communautaires (visibles seulement après coup d'envoi)
-  const lockedMatchIds = matchesWithPrediction.filter((m) => m.isLocked).map((m) => m.id)
+  // Pronostics communautaires (uniquement pour les matchs verrouillés avec équipes connues)
+  const lockedMatchIds = matchesWithPrediction
+    .filter((m) => m.isLocked && m.homeTeamId)
+    .map((m) => m.id)
+
   const communityPredictions = lockedMatchIds.length > 0
     ? await db.prediction.findMany({
         where: { matchId: { in: lockedMatchIds } },
@@ -56,9 +59,9 @@ export default async function PronosticsPage() {
       })
     : []
 
-  // Premier match (deadline tournoi)
-  const firstMatch = matches[0] ?? null
-  const tournamentLocked = firstMatch ? isMatchLocked(firstMatch.kickoff) : false
+  // Premier match avec équipes (deadline tournoi)
+  const firstMatchWithTeams = matches.find((m) => m.homeTeamId) ?? null
+  const tournamentLocked = firstMatchWithTeams ? isMatchLocked(firstMatchWithTeams.kickoff) : false
 
   // Pronostic tournoi (bonus)
   const myBonusPred = await db.tournamentPrediction.findUnique({
@@ -71,7 +74,7 @@ export default async function PronosticsPage() {
     },
   })
 
-  // Pronostics bonus communautaires (visibles seulement après verrouillage tournoi)
+  // Pronostics bonus communautaires
   const communityBonusPredictions = tournamentLocked
     ? await db.tournamentPrediction.findMany({
         where: { contestId: contest.id },
@@ -96,8 +99,10 @@ export default async function PronosticsPage() {
     db.scorerCandidate.findMany({ where: { contestId: contest.id }, orderBy: { name: "asc" } }),
   ])
 
-  // Comptage progression
-  const pendingMatchCount = matchesWithPrediction.filter((m) => !m.isLocked && !m.prediction).length
+  // Comptage progression (seulement matchs avec équipes)
+  const matchesWithTeams = matchesWithPrediction.filter((m) => m.homeTeamId)
+  const pendingMatchCount = matchesWithTeams.filter((m) => !m.isLocked && !m.prediction).length
+
   const completedGroupPreds = myBonusPred?.groupPredictions.length ?? 0
   const bonusCompleted =
     (myBonusPred?.winnerId ? 1 : 0) +
@@ -117,12 +122,13 @@ export default async function PronosticsPage() {
       groups={groups}
       scorerCandidates={scorerCandidates}
       myBonusPred={myBonusPred}
-      firstMatchKickoff={firstMatch?.kickoff ?? null}
+      firstMatchKickoff={firstMatchWithTeams?.kickoff ?? null}
       tournamentLocked={tournamentLocked}
       pendingMatchCount={pendingMatchCount}
       bonusCompleted={bonusCompleted}
       bonusTotal={bonusTotal}
       userId={userId}
+      knockoutScoringRule={contest.settings?.knockoutScoringRule ?? "REGULAR_TIME"}
     />
   )
 }

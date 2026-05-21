@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import Link from "next/link"
-import { ChevronLeft, Home, ClipboardCheck, Users, UserPlus, Swords, Settings, TableProperties } from "lucide-react"
+import { ChevronLeft, Home, ClipboardCheck, Users, UserPlus, Swords, Settings } from "lucide-react"
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
@@ -31,7 +31,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           {[
             { href: "/admin", label: "Accueil", icon: Home },
             { href: "/admin/resultats", label: "Résultats", icon: ClipboardCheck },
-            { href: "/admin/tableau", label: "Tableau", icon: TableProperties },
             { href: "/admin/knockout", label: "Knockout", icon: Swords },
             { href: "/admin/participants", label: "Joueurs", icon: Users },
             { href: "/admin/invitations", label: "Invitations", icon: UserPlus },

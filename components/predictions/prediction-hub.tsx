@@ -61,6 +61,7 @@ interface Props {
   bonusCompleted: number
   bonusTotal: number
   userId: string
+  knockoutScoringRule: "REGULAR_TIME" | "FULL_TIME"
 }
 
 const TABS = [
@@ -96,7 +97,7 @@ export function PredictionHub(props: Props) {
         />
       </div>
 
-      {/* Sticky tab bar — scrollable for 4 tabs */}
+      {/* Sticky tab bar */}
       <div className="sticky top-0 z-20 bg-[var(--background)] border-b border-[var(--border)] px-4 py-2">
         <div className="flex gap-1 overflow-x-auto scrollbar-none bg-[var(--surface-elevated)] rounded-xl p-1">
           {TABS.map((tab) => {
@@ -149,6 +150,7 @@ export function PredictionHub(props: Props) {
                 matches={props.matches}
                 contestId={props.contest.id}
                 communityPredictions={props.communityPredictions}
+                knockoutScoringRule={props.knockoutScoringRule}
               />
             )}
             {activeTab === "tournament" && (
@@ -221,7 +223,7 @@ function ProgressSummary({
             <span className="text-base">⚽</span>
             <div>
               <div className="text-xs font-semibold text-[var(--accent)]">{pendingMatchCount} match{pendingMatchCount > 1 ? "s" : ""} à pronostiquer</div>
-              <div className="text-[10px] text-[var(--foreground-muted)]">Verrouillés au coup d'envoi</div>
+              <div className="text-[10px] text-[var(--foreground-muted)]">Verrouillés au coup d&apos;envoi</div>
             </div>
           </div>
           <span className="text-[10px] text-[var(--accent)] font-semibold">Voir →</span>

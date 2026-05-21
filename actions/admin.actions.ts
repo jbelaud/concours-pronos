@@ -22,6 +22,7 @@ async function requireAdmin() {
 export async function createContest(data: {
   name: string
   templateSlug: string
+  isFree: boolean
   buyIn: number
   iban?: string
   paymentInstructions?: string
@@ -35,6 +36,7 @@ export async function createContest(data: {
     pointsBestDefense: number
     pointsGroupFirst: number
     pointsGroupSecond: number
+    knockoutScoringRule: "REGULAR_TIME" | "FULL_TIME"
   }
   prizepool: {
     totalAmount: number
@@ -68,15 +70,28 @@ export async function createContest(data: {
     data: {
       name: data.name,
       templateId: dbTemplate.id,
-      buyIn: data.buyIn,
-      iban: data.iban || null,
-      paymentInstructions: data.paymentInstructions || null,
+      isFree: data.isFree,
+      buyIn: data.isFree ? 0 : data.buyIn,
+      iban: data.isFree ? null : (data.iban || null),
+      paymentInstructions: data.isFree ? null : (data.paymentInstructions || null),
       status: "DRAFT",
     },
   })
 
   await db.contestSettings.create({
-    data: { contestId: contest.id, ...data.settings },
+    data: {
+      contestId: contest.id,
+      pointsCorrectResult: data.settings.pointsCorrectResult,
+      pointsExactScore: data.settings.pointsExactScore,
+      pointsWrongResult: data.settings.pointsWrongResult,
+      pointsWinner: data.settings.pointsWinner,
+      pointsTopScorer: data.settings.pointsTopScorer,
+      pointsBestAttack: data.settings.pointsBestAttack,
+      pointsBestDefense: data.settings.pointsBestDefense,
+      pointsGroupFirst: data.settings.pointsGroupFirst,
+      pointsGroupSecond: data.settings.pointsGroupSecond,
+      knockoutScoringRule: data.settings.knockoutScoringRule,
+    },
   })
 
   const prizepool = await db.prizepool.create({
@@ -300,6 +315,8 @@ export async function saveMatchResult(data: {
   matchId: string
   homeScore: number
   awayScore: number
+  regularTimeHome?: number
+  regularTimeAway?: number
   matchday?: number
 }) {
   await requireAdmin()
@@ -309,11 +326,15 @@ export async function saveMatchResult(data: {
     select: { contestId: true, status: true, phase: true },
   })
 
+  const isKnockout = match.phase !== "GROUP"
+
   await db.match.update({
     where: { id: data.matchId },
     data: {
       homeScore: data.homeScore,
       awayScore: data.awayScore,
+      regularTimeHome: isKnockout ? (data.regularTimeHome ?? null) : null,
+      regularTimeAway: isKnockout ? (data.regularTimeAway ?? null) : null,
       status: "FINISHED",
     },
   })
