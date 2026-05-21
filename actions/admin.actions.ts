@@ -558,6 +558,14 @@ export async function resolveKnockoutProgression(contestId: string) {
   const byNumber: Record<number, typeof knockoutMatches[0]> = {}
   for (const m of knockoutMatches) byNumber[m.matchNumber] = m
 
+  // Index by short prefix (e.g. "QF1", "SF1") extracted from knockoutLabel
+  // Label format: "QF1 - Vainqueur 89 vs Vainqueur 90" → prefix = "QF1"
+  const byPrefix: Record<string, typeof knockoutMatches[0]> = {}
+  for (const m of knockoutMatches) {
+    const prefixMatch = m.knockoutLabel?.match(/^([A-Z]+\d+)\s*-/)
+    if (prefixMatch) byPrefix[prefixMatch[1]] = m
+  }
+
   // Helper: get winner teamId of a finished knockout match.
   // Convention for draws resolved by penalties:
   //   - regularTimeHome = regularTimeAway (the 90+ET score, equal)
@@ -581,12 +589,37 @@ export async function resolveKnockoutProgression(contestId: string) {
     return null
   }
 
-  // Parse "Vainqueur 74 vs Vainqueur 77" → [74, 77]
-  // Parse "QF1 - Vainqueur 89 vs Vainqueur 90" → [89, 90]
-  const parseMatchNumbers = (label: string | null): [number, number] | null => {
-    if (!label) return null
-    const nums = [...label.matchAll(/\b(\d{2,3})\b/g)].map((m) => parseInt(m[1]))
-    if (nums.length >= 2) return [nums[0], nums[1]]
+  // Resolve a slot reference from a label fragment like "Vainqueur 89" or "Vainqueur QF1"
+  const resolveWinner = (ref: string): string | null => {
+    // "Vainqueur 89" → match number
+    const numMatch = ref.match(/\b(\d{2,3})\b/)
+    if (numMatch) return winnerId(parseInt(numMatch[1]))
+    // "Vainqueur QF1" → find match with prefix QF1
+    const prefixMatch = ref.match(/([A-Z]+\d+)/)
+    if (prefixMatch) {
+      const refMatch = byPrefix[prefixMatch[1]]
+      if (refMatch) return winnerId(refMatch.matchNumber)
+    }
+    return null
+  }
+
+  const resolveLoser = (ref: string): string | null => {
+    const numMatch = ref.match(/\b(\d{2,3})\b/)
+    if (numMatch) return loserId(parseInt(numMatch[1]))
+    const prefixMatch = ref.match(/([A-Z]+\d+)/)
+    if (prefixMatch) {
+      const refMatch = byPrefix[prefixMatch[1]]
+      if (refMatch) return loserId(refMatch.matchNumber)
+    }
+    return null
+  }
+
+  // Parse label into home/away slot references
+  // Strips leading prefix like "SF1 - " then splits on " vs "
+  const parseSlots = (label: string): [string, string] | null => {
+    const cleaned = label.replace(/^[A-Z]+\d+\s*-\s*/, "").trim()
+    const parts = cleaned.split(/\s+vs\s+/i)
+    if (parts.length === 2) return [parts[0].trim(), parts[1].trim()]
     return null
   }
 
@@ -598,33 +631,23 @@ export async function resolveKnockoutProgression(contestId: string) {
 
     const label = match.knockoutLabel ?? ""
 
-    // 3e place: losers of semi-finals (matches 101 and 102)
+    // 3e place: losers of the two semi-finals
     if (match.phase === "THIRD_PLACE") {
-      const home = loserId(101)
-      const away = loserId(102)
+      const slots = parseSlots(label)
+      const home = slots ? resolveLoser(slots[0]) : loserId(101)
+      const away = slots ? resolveLoser(slots[1]) : loserId(102)
       if (home !== match.homeTeamId || away !== match.awayTeamId) {
         updates.push({ id: match.id, homeTeamId: home, awayTeamId: away })
       }
       continue
     }
 
-    // Finale: winners of semi-finals (matches 101 and 102)
-    if (match.phase === "FINAL") {
-      const home = winnerId(101)
-      const away = winnerId(102)
-      if (home !== match.homeTeamId || away !== match.awayTeamId) {
-        updates.push({ id: match.id, homeTeamId: home, awayTeamId: away })
-      }
-      continue
-    }
+    // General case: winners of referenced matches
+    const slots = parseSlots(label)
+    if (!slots) continue
 
-    // General case: parse match numbers from label
-    const parsed = parseMatchNumbers(label)
-    if (!parsed) continue
-    const [homeRef, awayRef] = parsed
-
-    const home = winnerId(homeRef)
-    const away = winnerId(awayRef)
+    const home = resolveWinner(slots[0])
+    const away = resolveWinner(slots[1])
 
     if (home !== match.homeTeamId || away !== match.awayTeamId) {
       updates.push({ id: match.id, homeTeamId: home, awayTeamId: away })

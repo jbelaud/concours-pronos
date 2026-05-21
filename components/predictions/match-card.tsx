@@ -176,7 +176,7 @@ export function MatchCard({
             <><CheckCircle size={11} /> Score exact · +{match.prediction?.points ?? 0} pts</>
           )}
           {predictionStatus === "CORRECT_RESULT" && (
-            <><CheckCircle size={11} /> Résultat correct · +{match.prediction?.points ?? 0} pts</>
+            <><CheckCircle size={11} /> Bon résultat · +{match.prediction?.points ?? 0} pts</>
           )}
           {predictionStatus === "WRONG" && (
             <><AlertCircle size={11} /> Raté · 0 pt</>

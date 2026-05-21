@@ -71,7 +71,7 @@ export function ResultsTab({ matches, settings }: Props) {
         <div className="grid grid-cols-4 gap-2 mb-3">
           <StatChip label="Pts gagnés" value={`+${totalPoints}`} color="accent" />
           <StatChip label="Exact" value={String(exactCount)} color="success" />
-          <StatChip label="Correct" value={String(correctCount)} color="warning" />
+          <StatChip label="Bon résultat" value={String(correctCount)} color="warning" />
           <StatChip label="Raté" value={String(wrongCount)} color="muted" />
         </div>
         <ScoreLegend settings={settings} />
@@ -126,7 +126,7 @@ function ScoreLegend({ settings }: { settings: Props["settings"] }) {
       <span className="text-[var(--success)] font-semibold">Score exact</span>
       <span className="text-[var(--foreground-subtle)]">= +{settings.pointsCorrectResult + settings.pointsExactScore} pts</span>
       <span className="mx-1">·</span>
-      <span className="text-[var(--warning)] font-semibold">Bonne issue</span>
+      <span className="text-[var(--warning)] font-semibold">Bon résultat</span>
       <span className="text-[var(--foreground-subtle)]">= +{settings.pointsCorrectResult} pts</span>
     </div>
   )
@@ -153,7 +153,7 @@ function ResultMatchCard({ match }: { match: MatchWithPrediction }) {
 
   const statusStyle: Record<string, { bg: string; border: string; badge: string; label: string }> = {
     EXACT_SCORE: { bg: "bg-[var(--success-dim)]", border: "border-[var(--success)]/20", badge: "bg-[var(--success)] text-white", label: "Exact" },
-    CORRECT_RESULT: { bg: "bg-[var(--warning-dim)]", border: "border-[var(--warning)]/20", badge: "bg-[var(--warning)] text-white", label: "Correct" },
+    CORRECT_RESULT: { bg: "bg-[var(--warning-dim)]", border: "border-[var(--warning)]/20", badge: "bg-[var(--warning)] text-white", label: "Bon résultat" },
     WRONG: { bg: "bg-[var(--surface-elevated)]", border: "border-[var(--border)]", badge: "bg-[var(--foreground-subtle)]/30 text-[var(--foreground-muted)]", label: "Raté" },
     PENDING: { bg: "bg-[var(--surface-elevated)]", border: "border-[var(--border)]", badge: "bg-[var(--foreground-subtle)]/30 text-[var(--foreground-muted)]", label: "En attente" },
   }

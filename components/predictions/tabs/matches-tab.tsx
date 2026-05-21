@@ -137,8 +137,14 @@ export function MatchesTab({ matches, contestId, communityPredictions, knockoutS
   const hasGroupMatches = groupLetters.length > 0
   const hasElimMatches = elimPhases.length > 0
 
+  // Auto-switch to knockout if there are pending predictions there and none in groups
+  const hasKnockoutPending = matches.some((m) => m.phase !== "GROUP" && m.homeTeamId && !m.isLocked && !m.prediction)
+  const hasGroupPending = matches.some((m) => m.phase === "GROUP" && !m.isLocked && !m.prediction)
+
   type MainTab = "groups" | "knockout"
-  const [mainTab, setMainTab] = useState<MainTab>(hasGroupMatches ? "groups" : "knockout")
+  const [mainTab, setMainTab] = useState<MainTab>(
+    hasGroupMatches && !(!hasGroupPending && hasKnockoutPending) ? "groups" : "knockout"
+  )
 
   type GroupFilter = "day" | string
   const [groupFilter, setGroupFilter] = useState<GroupFilter>("day")
@@ -181,9 +187,12 @@ export function MatchesTab({ matches, contestId, communityPredictions, knockoutS
         )}
         <button
           onClick={() => { setMainTab("knockout"); if (!activeKnockoutPhase && elimPhases[0]) setActiveKnockoutPhase(elimPhases[0]) }}
-          className={cn("flex-1 py-2 rounded-lg text-xs font-semibold transition-all", mainTab === "knockout" ? "gradient-accent text-white shadow-sm" : "text-[var(--foreground-muted)] hover:text-[var(--foreground)]")}
+          className={cn("flex-1 py-2 rounded-lg text-xs font-semibold transition-all relative", mainTab === "knockout" ? "gradient-accent text-white shadow-sm" : "text-[var(--foreground-muted)] hover:text-[var(--foreground)]")}
         >
           Phases Finales
+          {hasKnockoutPending && mainTab !== "knockout" && (
+            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[var(--error)]" />
+          )}
         </button>
       </div>
 
