@@ -372,7 +372,7 @@ function BracketSection({
   return (
     <div className="flex flex-col gap-3">
       {/* 1/16 */}
-      <PhaseCard title="1/16 de finale" subtitle="Mis à jour en temps réel">
+      <PhaseCard title="1/16 de finale" subtitle="Mis à jour en temps réel" defaultOpen={false}>
         {roundOf32Matchups.map(({ matchNumber, homeTeamCode, awayTeamCode, homeLabel, awayLabel }) => {
           const isResolved = !!homeTeamCode && !!awayTeamCode
           const homeTeam = homeTeamCode ? teamByCode[homeTeamCode] : null
@@ -427,14 +427,26 @@ function BracketSection({
   )
 }
 
-function PhaseCard({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
+function PhaseCard({ title, subtitle, children, defaultOpen = true }: { title: string; subtitle?: string; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen)
+  const count = Array.isArray(children) ? children.filter(Boolean).length : (children ? 1 : 0)
+
   return (
     <div className="surface-card overflow-hidden">
-      <div className="px-3 py-2 border-b border-[var(--border)] flex items-center justify-between">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full px-3 py-2.5 flex items-center justify-between hover:bg-[var(--surface-elevated)] transition-colors"
+      >
         <span className="text-xs font-bold text-[var(--foreground)]">{title}</span>
-        {subtitle && <span className="text-[10px] text-[var(--foreground-subtle)]">{subtitle}</span>}
-      </div>
-      <div className="flex flex-col">{children}</div>
+        <div className="flex items-center gap-2">
+          {subtitle && <span className="text-[10px] text-[var(--foreground-subtle)]">{subtitle}</span>}
+          {!open && <span className="text-[10px] text-[var(--foreground-subtle)]">{count} match{count > 1 ? "s" : ""}</span>}
+          <span className={cn("text-[var(--foreground-subtle)] transition-transform duration-200", open ? "rotate-0" : "-rotate-90")}>
+            ▾
+          </span>
+        </div>
+      </button>
+      {open && <div className="flex flex-col border-t border-[var(--border)]">{children}</div>}
     </div>
   )
 }
