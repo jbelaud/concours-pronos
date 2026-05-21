@@ -14,13 +14,23 @@ export async function upsertPrediction(data: {
   const session = await auth()
   if (!session?.user?.id) return { error: "Non authentifié." }
 
-  const match = await db.match.findUnique({
-    where: { id: data.matchId },
-    select: { kickoff: true, contestId: true },
-  })
+  const [match, participant] = await Promise.all([
+    db.match.findUnique({
+      where: { id: data.matchId },
+      select: { kickoff: true, contestId: true },
+    }),
+    db.contestParticipant.findUnique({
+      where: { contestId_userId: { contestId: data.contestId, userId: session.user.id } },
+      select: { userId: true },
+    }),
+  ])
 
   if (!match || match.contestId !== data.contestId) {
     return { error: "Match introuvable." }
+  }
+
+  if (!participant) {
+    return { error: "Tu n'es pas participant de ce concours." }
   }
 
   if (isMatchLocked(match.kickoff)) {
@@ -66,12 +76,21 @@ export async function upsertBonusPrediction(data: {
   const session = await auth()
   if (!session?.user?.id) return { error: "Non authentifié." }
 
-  // Check if first match has started
-  const firstMatch = await db.match.findFirst({
-    where: { contestId: data.contestId },
-    orderBy: { kickoff: "asc" },
-    select: { kickoff: true },
-  })
+  const [firstMatch, participant] = await Promise.all([
+    db.match.findFirst({
+      where: { contestId: data.contestId },
+      orderBy: { kickoff: "asc" },
+      select: { kickoff: true },
+    }),
+    db.contestParticipant.findUnique({
+      where: { contestId_userId: { contestId: data.contestId, userId: session.user.id } },
+      select: { userId: true },
+    }),
+  ])
+
+  if (!participant) {
+    return { error: "Tu n'es pas participant de ce concours." }
+  }
 
   if (firstMatch && isMatchLocked(firstMatch.kickoff)) {
     return { error: "Les pronostics bonus sont verrouillés." }
@@ -115,11 +134,21 @@ export async function upsertGroupPrediction(data: {
   const session = await auth()
   if (!session?.user?.id) return { error: "Non authentifié." }
 
-  const firstMatch = await db.match.findFirst({
-    where: { contestId: data.contestId },
-    orderBy: { kickoff: "asc" },
-    select: { kickoff: true },
-  })
+  const [firstMatch, participant] = await Promise.all([
+    db.match.findFirst({
+      where: { contestId: data.contestId },
+      orderBy: { kickoff: "asc" },
+      select: { kickoff: true },
+    }),
+    db.contestParticipant.findUnique({
+      where: { contestId_userId: { contestId: data.contestId, userId: session.user.id } },
+      select: { userId: true },
+    }),
+  ])
+
+  if (!participant) {
+    return { error: "Tu n'es pas participant de ce concours." }
+  }
 
   if (firstMatch && isMatchLocked(firstMatch.kickoff)) {
     return { error: "Les pronostics de groupes sont verrouillés." }
