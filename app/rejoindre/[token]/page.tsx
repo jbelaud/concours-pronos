@@ -2,6 +2,8 @@ import { db } from "@/lib/db"
 import { auth } from "@/lib/auth"
 import { notFound } from "next/navigation"
 import { JoinContestClient } from "./join-contest-client"
+import { CopyIbanButton } from "@/components/shared/copy-iban-button"
+import { CountdownTimer } from "@/components/shared/countdown-timer"
 import type { Metadata } from "next"
 import { Users, Trophy, Banknote, Star } from "lucide-react"
 
@@ -27,7 +29,7 @@ export default async function RejoindreContestPage({ params }: Props) {
       _count: { select: { participants: true } },
       participants: { select: { hasPaid: true } },
       prizepool: { include: { payouts: { orderBy: { position: "asc" } } } },
-      template: { select: { name: true, edition: true } },
+      template: { select: { name: true, edition: true, startDate: true } },
     },
   })
 
@@ -190,17 +192,25 @@ export default async function RejoindreContestPage({ params }: Props) {
 
         {/* Instructions paiement */}
         {contest.buyIn > 0 && contest.iban && (
-          <div className="surface-card p-4 border border-[var(--accent)]/20">
-            <div className="text-xs font-semibold text-[var(--accent)] uppercase tracking-wide mb-2 flex items-center gap-1">
+          <div className="surface-card p-4 border border-[var(--accent)]/20 flex flex-col gap-3">
+            <div className="text-xs font-semibold text-[var(--accent)] uppercase tracking-wide flex items-center gap-1">
               🏦 Paiement par virement
             </div>
-            <div className="text-sm font-mono text-[var(--foreground)] break-all">{contest.iban}</div>
+            <div className="flex items-center justify-between gap-3 bg-[var(--surface-elevated)] rounded-xl px-3 py-2.5">
+              <span className="text-sm font-mono text-[var(--foreground)] break-all leading-snug flex-1">{contest.iban}</span>
+              <CopyIbanButton iban={contest.iban} />
+            </div>
             {contest.paymentInstructions && (
-              <div className="text-xs text-[var(--foreground-muted)] mt-2 whitespace-pre-line">
+              <div className="text-xs text-[var(--foreground-muted)] whitespace-pre-line">
                 {contest.paymentInstructions}
               </div>
             )}
           </div>
+        )}
+
+        {/* Compte à rebours */}
+        {contest.template?.startDate && (
+          <CountdownTimer targetDate={contest.template.startDate.toISOString()} />
         )}
 
         {/* CTA join */}
