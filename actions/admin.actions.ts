@@ -824,9 +824,9 @@ export async function markScorerWinner(data: {
 export async function applyBonusResults(data: {
   contestId: string
   winnerId: string | null
-  topScorerIds: string[]      // plusieurs gagnants ex aequo possibles
-  bestAttackId: string | null
-  bestDefenseId: string | null
+  topScorerIds: string[]
+  bestAttackIds: string[]
+  bestDefenseIds: string[]
 }) {
   await requireAdmin()
 
@@ -847,10 +847,10 @@ export async function applyBonusResults(data: {
       if (data.topScorerIds.length > 0 && pred.topScorerId && data.topScorerIds.includes(pred.topScorerId)) {
         points += settings.pointsTopScorer
       }
-      if (data.bestAttackId && pred.bestAttackId === data.bestAttackId) {
+      if (data.bestAttackIds.length > 0 && pred.bestAttackId && data.bestAttackIds.includes(pred.bestAttackId)) {
         points += settings.pointsBestAttack
       }
-      if (data.bestDefenseId && pred.bestDefenseId === data.bestDefenseId) {
+      if (data.bestDefenseIds.length > 0 && pred.bestDefenseId && data.bestDefenseIds.includes(pred.bestDefenseId)) {
         points += settings.pointsBestDefense
       }
 

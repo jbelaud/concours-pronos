@@ -3,6 +3,7 @@ import { BonusManager } from "@/components/admin/bonus-manager"
 import { SyncScorersButton } from "@/components/admin/sync-scorers-button"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+import { computeGroupStandings } from "@/lib/wc2026-standings"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = { title: "Bonus & Résultats finaux" }
@@ -55,9 +56,7 @@ export default async function BonusPage({ searchParams }: Props) {
       })
     : []
 
-  // Résultats bonus déjà appliqués : on lit ce qui est défini dans les TournamentPrediction
-  // On ne stocke pas de "résultats officiels" séparément — on lit les ScorerCandidate.isWinner
-  // et on déduit le vainqueur depuis le match Final (phase FINAL, status FINISHED)
+  // Winner: infer from finished final match
   const finalMatch = contest
     ? await db.match.findFirst({
         where: { contestId: contest.id, phase: "FINAL", status: "FINISHED" },
@@ -66,18 +65,54 @@ export default async function BonusPage({ searchParams }: Props) {
     : null
 
   let currentWinnerId: string | null = null
-  if (finalMatch) {
-    if (finalMatch.homeScore !== null && finalMatch.awayScore !== null) {
-      if (finalMatch.homeScore > finalMatch.awayScore) currentWinnerId = finalMatch.homeTeamId ?? null
-      else if (finalMatch.awayScore > finalMatch.homeScore) currentWinnerId = finalMatch.awayTeamId ?? null
-    }
+  if (finalMatch?.homeScore !== null && finalMatch?.awayScore !== null) {
+    if ((finalMatch?.homeScore ?? 0) > (finalMatch?.awayScore ?? 0)) currentWinnerId = finalMatch?.homeTeamId ?? null
+    else if ((finalMatch?.awayScore ?? 0) > (finalMatch?.homeScore ?? 0)) currentWinnerId = finalMatch?.awayTeamId ?? null
   }
 
   const currentTopScorerIds = scorerCandidates.filter((s) => s.isWinner).map((s) => s.id)
 
-  // Meilleure attaque / défense : on cherche dans les TournamentPrediction ayant des points
-  // pour retrouver ce qui a été appliqué. On stocke dans un champ dédié sur le contest — mais
-  // comme ce n'est pas dans le schéma, on passe null par défaut (l'admin devra re-sélectionner).
+  // Compute best attack / defense from group standings
+  let initialBestAttackIds: string[] = []
+  let initialBestDefenseIds: string[] = []
+
+  if (contest) {
+    const groupMatches = await db.match.findMany({
+      where: { contestId: contest.id, phase: "GROUP", status: "FINISHED" },
+      include: { homeTeam: true, awayTeam: true },
+    })
+
+    const groupLetters = [...new Set(teams.map((t) => t.group).filter(Boolean) as string[])]
+
+    const allStandings = groupLetters.flatMap((letter) => {
+      const groupTeams = teams.filter((t) => t.group === letter)
+      const teamCodes = groupTeams.map((t) => t.code)
+      const teamMeta: Record<string, { name: string; flagEmoji: string | null }> = {}
+      for (const t of groupTeams) teamMeta[t.code] = { name: t.name, flagEmoji: t.flagEmoji }
+      const results = groupMatches
+        .filter((m) => m.homeTeam?.group === letter)
+        .map((m) => ({
+          homeTeamCode: m.homeTeam!.code,
+          awayTeamCode: m.awayTeam!.code,
+          homeScore: m.homeScore ?? 0,
+          awayScore: m.awayScore ?? 0,
+          groupLetter: letter,
+        }))
+      return computeGroupStandings(letter, teamCodes, teamMeta, results)
+    })
+
+    if (allStandings.length > 0) {
+      const maxGF = Math.max(...allStandings.map((t) => t.goalsFor))
+      const minGA = Math.min(...allStandings.map((t) => t.goalsAgainst))
+
+      const bestAttackCodes = allStandings.filter((t) => t.goalsFor === maxGF).map((t) => t.code)
+      const bestDefenseCodes = allStandings.filter((t) => t.goalsAgainst === minGA).map((t) => t.code)
+
+      initialBestAttackIds = teams.filter((t) => bestAttackCodes.includes(t.code)).map((t) => t.id)
+      initialBestDefenseIds = teams.filter((t) => bestDefenseCodes.includes(t.code)).map((t) => t.id)
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div>
@@ -87,7 +122,6 @@ export default async function BonusPage({ searchParams }: Props) {
         </p>
       </div>
 
-      {/* Sélecteur de concours */}
       {allContests.length > 1 && (
         <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
           {allContests.map((c) => {
@@ -135,6 +169,8 @@ export default async function BonusPage({ searchParams }: Props) {
             }}
             initialWinnerId={currentWinnerId}
             initialTopScorerIds={currentTopScorerIds}
+            initialBestAttackIds={initialBestAttackIds}
+            initialBestDefenseIds={initialBestDefenseIds}
           />
         </>
       )}
