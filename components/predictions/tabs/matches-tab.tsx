@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useMemo, useRef, useEffect } from "react"
+import { useState, useMemo, useRef, useLayoutEffect, useCallback } from "react"
+import { createPortal } from "react-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import { MatchCard } from "../match-card"
 import { CommunityMatchStats } from "../community-match-stats"
-import { PHASE_ORDER, formatKickoff } from "@/lib/utils"
+import { PHASE_ORDER } from "@/lib/utils"
 import { ChevronDown, ChevronUp, Info, CalendarDays } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { MatchWithPrediction } from "@/types"
@@ -39,6 +40,72 @@ function formatDayShort(dateStr: string): string {
   return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })
 }
 
+// Dropdown positionné en fixed pour échapper aux overflow parents
+function DayDropdown({
+  days,
+  activeDay,
+  hasPendingFn,
+  onSelect,
+  onClose,
+  anchorRef,
+}: {
+  days: string[]
+  activeDay: string
+  hasPendingFn: (day: string) => boolean
+  onSelect: (day: string) => void
+  onClose: () => void
+  anchorRef: React.RefObject<HTMLButtonElement | null>
+}) {
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 100 })
+  const [mounted, setMounted] = useState(false)
+
+  useLayoutEffect(() => {
+    setMounted(true)
+    if (anchorRef.current) {
+      const rect = anchorRef.current.getBoundingClientRect()
+      setPos({ top: rect.bottom + 4, left: rect.left, width: Math.max(rect.width, 100) })
+    }
+
+    function handleClick(e: MouseEvent) {
+      if (anchorRef.current && !anchorRef.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [anchorRef, onClose])
+
+  if (!mounted) return null
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0, y: -4, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -4, scale: 0.97 }}
+      transition={{ duration: 0.12 }}
+      style={{ position: "fixed", top: pos.top, left: pos.left, minWidth: pos.width, zIndex: 9999 }}
+      className="bg-[var(--surface-elevated)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden"
+    >
+      <div className="max-h-52 overflow-y-auto">
+        {days.map((day) => (
+          <button
+            key={day}
+            onClick={() => { onSelect(day); onClose() }}
+            className={cn(
+              "w-full flex items-center justify-between px-3 py-2 text-xs font-semibold transition-all hover:bg-[var(--surface)]",
+              activeDay === day ? "text-[var(--accent)]" : "text-[var(--foreground)]"
+            )}
+          >
+            {formatDayShort(day)}
+            {hasPendingFn(day) && <span className="w-1.5 h-1.5 rounded-full bg-[var(--error)] ml-2 shrink-0" />}
+          </button>
+        ))}
+      </div>
+    </motion.div>,
+    document.body
+  )
+}
+
 export function MatchesTab({ matches, contestId, communityPredictions, knockoutScoringRule }: Props) {
   const communityByMatch = useMemo(() => {
     const map: Record<string, CommunityPrediction[]> = {}
@@ -49,7 +116,6 @@ export function MatchesTab({ matches, contestId, communityPredictions, knockoutS
     return map
   }, [communityPredictions])
 
-  // Séparation poules / knockout
   const { groupLetters, elimPhases } = useMemo(() => {
     const groups = new Set<string>()
     const elim = new Set<string>()
@@ -63,31 +129,22 @@ export function MatchesTab({ matches, contestId, communityPredictions, knockoutS
     }
   }, [matches])
 
-  // Jours disponibles pour les matchs de poule
   const groupDays = useMemo(() => {
-    const days = new Set(
-      matches
-        .filter((m) => m.phase === "GROUP")
-        .map((m) => m.kickoff.toISOString().split("T")[0])
-    )
+    const days = new Set(matches.filter((m) => m.phase === "GROUP").map((m) => m.kickoff.toISOString().split("T")[0]))
     return Array.from(days).sort()
   }, [matches])
 
   const hasGroupMatches = groupLetters.length > 0
   const hasElimMatches = elimPhases.length > 0
 
-  // Navigation principale : Poules / Phases Finales
   type MainTab = "groups" | "knockout"
-  const defaultMainTab: MainTab = hasGroupMatches ? "groups" : "knockout"
-  const [mainTab, setMainTab] = useState<MainTab>(defaultMainTab)
+  const [mainTab, setMainTab] = useState<MainTab>(hasGroupMatches ? "groups" : "knockout")
 
-  // Mode filtre poules : "day" ou lettre de groupe
   type GroupFilter = "day" | string
   const [groupFilter, setGroupFilter] = useState<GroupFilter>("day")
   const [showDayDropdown, setShowDayDropdown] = useState(false)
-  const dayDropdownRef = useRef<HTMLDivElement>(null)
+  const dayBtnRef = useRef<HTMLButtonElement>(null)
 
-  // Jour actif : par défaut le premier jour avec des matchs non verrouillés, sinon le dernier
   const defaultDay = useMemo(() => {
     const pending = matches.find((m) => m.phase === "GROUP" && !m.isLocked)
     if (pending) return pending.kickoff.toISOString().split("T")[0]
@@ -95,64 +152,36 @@ export function MatchesTab({ matches, contestId, communityPredictions, knockoutS
   }, [matches, groupDays])
 
   const [activeDay, setActiveDay] = useState(defaultDay)
+  const [activeKnockoutPhase, setActiveKnockoutPhase] = useState<string>(elimPhases[0] ?? "ROUND_OF_16")
 
-  // Sous-filtre knockout (phase)
-  const defaultKnockoutPhase = useMemo(() => {
-    // Première phase avec des matchs
-    return elimPhases[0] ?? "ROUND_OF_16"
-  }, [elimPhases])
-  const [activeKnockoutPhase, setActiveKnockoutPhase] = useState<string>(defaultKnockoutPhase)
-
-  // Fermer dropdown si clic extérieur
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (dayDropdownRef.current && !dayDropdownRef.current.contains(e.target as Node)) {
-        setShowDayDropdown(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClick)
-    return () => document.removeEventListener("mousedown", handleClick)
-  }, [])
+  const dayHasPending = useCallback(
+    (day: string) => matches.filter((m) => m.phase === "GROUP" && m.kickoff.toISOString().split("T")[0] === day).some((m) => !m.isLocked && !m.prediction),
+    [matches]
+  )
 
   const currentMatches = useMemo(() => {
     if (mainTab === "groups") {
-      if (groupFilter === "day") {
-        return matches.filter((m) => m.phase === "GROUP" && m.kickoff.toISOString().split("T")[0] === activeDay)
-      }
+      if (groupFilter === "day") return matches.filter((m) => m.phase === "GROUP" && m.kickoff.toISOString().split("T")[0] === activeDay)
       return matches.filter((m) => m.phase === "GROUP" && m.groupLetter === groupFilter)
-    } else {
-      return matches.filter((m) => m.phase === activeKnockoutPhase)
     }
+    return matches.filter((m) => m.phase === activeKnockoutPhase)
   }, [matches, mainTab, groupFilter, activeDay, activeKnockoutPhase])
 
   return (
     <div className="flex flex-col gap-0 pb-6">
-      {/* Navigation principale — Poules / Phases Finales */}
+      {/* Navigation principale */}
       <div className="flex gap-1 mb-3 bg-[var(--surface-elevated)] rounded-xl p-1">
         {hasGroupMatches && (
           <button
             onClick={() => setMainTab("groups")}
-            className={cn(
-              "flex-1 py-2 rounded-lg text-xs font-semibold transition-all",
-              mainTab === "groups"
-                ? "gradient-accent text-white shadow-sm"
-                : "text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
-            )}
+            className={cn("flex-1 py-2 rounded-lg text-xs font-semibold transition-all", mainTab === "groups" ? "gradient-accent text-white shadow-sm" : "text-[var(--foreground-muted)] hover:text-[var(--foreground)]")}
           >
             Poules
           </button>
         )}
         <button
-          onClick={() => {
-            setMainTab("knockout")
-            if (!activeKnockoutPhase && elimPhases[0]) setActiveKnockoutPhase(elimPhases[0])
-          }}
-          className={cn(
-            "flex-1 py-2 rounded-lg text-xs font-semibold transition-all",
-            mainTab === "knockout"
-              ? "gradient-accent text-white shadow-sm"
-              : "text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
-          )}
+          onClick={() => { setMainTab("knockout"); if (!activeKnockoutPhase && elimPhases[0]) setActiveKnockoutPhase(elimPhases[0]) }}
+          className={cn("flex-1 py-2 rounded-lg text-xs font-semibold transition-all", mainTab === "knockout" ? "gradient-accent text-white shadow-sm" : "text-[var(--foreground-muted)] hover:text-[var(--foreground)]")}
         >
           Phases Finales
         </button>
@@ -161,77 +190,29 @@ export function MatchesTab({ matches, contestId, communityPredictions, knockoutS
       {/* === FILTRE POULES === */}
       {mainTab === "groups" && hasGroupMatches && (
         <div className="flex flex-col gap-2 mb-3">
-          {/* Ligne 1 : bouton Jour + lettres de groupes */}
-          <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-none items-center">
-            {/* Bouton Jour avec dropdown */}
-            <div className="relative shrink-0" ref={dayDropdownRef}>
-              <button
-                onClick={() => {
-                  setGroupFilter("day")
-                  setShowDayDropdown((v) => !v)
-                }}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border",
-                  groupFilter === "day"
-                    ? "bg-[var(--surface-elevated)] text-[var(--foreground)] border-[var(--border-strong)]"
-                    : "bg-[var(--surface)] text-[var(--foreground-muted)] border-[var(--border)]"
-                )}
-              >
-                <CalendarDays size={12} />
-                {groupFilter === "day" ? formatDayShort(activeDay) : "Jour"}
-                <ChevronDown size={10} className={cn("transition-transform", showDayDropdown && "rotate-180")} />
-              </button>
+          {/* Bouton Jour + lettres — flex-wrap pour éviter overflow qui casserait le dropdown */}
+          <div className="flex gap-1 flex-wrap items-center">
+            <button
+              ref={dayBtnRef}
+              onClick={() => { setGroupFilter("day"); setShowDayDropdown((v) => !v) }}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border shrink-0",
+                groupFilter === "day"
+                  ? "bg-[var(--surface-elevated)] text-[var(--foreground)] border-[var(--border-strong)]"
+                  : "bg-[var(--surface)] text-[var(--foreground-muted)] border-[var(--border)]"
+              )}
+            >
+              <CalendarDays size={12} />
+              {groupFilter === "day" ? formatDayShort(activeDay) : "Jour"}
+              <ChevronDown size={10} className={cn("transition-transform", showDayDropdown && "rotate-180")} />
+            </button>
 
-              {/* Dropdown des jours */}
-              <AnimatePresence>
-                {showDayDropdown && groupFilter === "day" && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -4, scale: 0.97 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -4, scale: 0.97 }}
-                    transition={{ duration: 0.12 }}
-                    className="absolute top-full left-0 mt-1 z-20 bg-[var(--surface-elevated)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden min-w-[90px]"
-                  >
-                    <div className="max-h-52 overflow-y-auto">
-                      {groupDays.map((day) => {
-                        const dayMatches = matches.filter((m) => m.phase === "GROUP" && m.kickoff.toISOString().split("T")[0] === day)
-                        const hasPending = dayMatches.some((m) => !m.isLocked && !m.prediction)
-                        return (
-                          <button
-                            key={day}
-                            onClick={() => {
-                              setActiveDay(day)
-                              setShowDayDropdown(false)
-                            }}
-                            className={cn(
-                              "w-full flex items-center justify-between px-3 py-2 text-xs font-semibold transition-all hover:bg-[var(--surface)]",
-                              activeDay === day ? "text-[var(--accent)]" : "text-[var(--foreground)]"
-                            )}
-                          >
-                            {formatDayShort(day)}
-                            {hasPending && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-[var(--error)] ml-2" />
-                            )}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* Lettres de groupe */}
             {groupLetters.map((letter) => {
-              const groupMatches = matches.filter((m) => m.phase === "GROUP" && m.groupLetter === letter)
-              const hasPending = groupMatches.some((m) => !m.isLocked && !m.prediction)
+              const hasPending = matches.filter((m) => m.phase === "GROUP" && m.groupLetter === letter).some((m) => !m.isLocked && !m.prediction)
               return (
                 <button
                   key={letter}
-                  onClick={() => {
-                    setGroupFilter(letter)
-                    setShowDayDropdown(false)
-                  }}
+                  onClick={() => { setGroupFilter(letter); setShowDayDropdown(false) }}
                   className={cn(
                     "shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all relative border",
                     groupFilter === letter
@@ -247,13 +228,27 @@ export function MatchesTab({ matches, contestId, communityPredictions, knockoutS
               )
             })}
           </div>
+
+          {/* Dropdown portal */}
+          <AnimatePresence>
+            {showDayDropdown && groupFilter === "day" && (
+              <DayDropdown
+                days={groupDays}
+                activeDay={activeDay}
+                hasPendingFn={dayHasPending}
+                onSelect={setActiveDay}
+                onClose={() => setShowDayDropdown(false)}
+                anchorRef={dayBtnRef}
+              />
+            )}
+          </AnimatePresence>
         </div>
       )}
 
       {/* === FILTRE PHASES FINALES === */}
       {mainTab === "knockout" && (
         <div className="flex flex-col gap-2 mb-3">
-          <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-none">
+          <div className="flex gap-1 flex-wrap">
             {KNOCKOUT_PHASES.filter((p) => elimPhases.includes(p) || !hasElimMatches).map((phase) => {
               const phaseMatches = matches.filter((m) => m.phase === phase)
               const hasPhase = phaseMatches.length > 0
@@ -280,7 +275,6 @@ export function MatchesTab({ matches, contestId, communityPredictions, knockoutS
             })}
           </div>
 
-          {/* Info règle de scoring knockout */}
           <div className="flex items-start gap-1.5 px-2 py-1.5 rounded-lg bg-[var(--surface-elevated)] border border-[var(--border)]">
             <Info size={11} className="text-[var(--foreground-muted)] mt-0.5 shrink-0" />
             <p className="text-[10px] text-[var(--foreground-muted)]">
@@ -308,30 +302,18 @@ export function MatchesTab({ matches, contestId, communityPredictions, knockoutS
               <KnockoutPlaceholder phase={activeKnockoutPhase} />
             ) : (
               currentMatches.map((match) => (
-                <MatchCardWithCommunity
-                  key={match.id}
-                  match={match}
-                  contestId={contestId}
-                  community={communityByMatch[match.id] ?? []}
-                />
+                <MatchCardWithCommunity key={match.id} match={match} contestId={contestId} community={communityByMatch[match.id] ?? []} />
               ))
             )
           ) : (
             currentMatches.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
                 <span className="text-3xl">⏳</span>
-                <p className="text-sm text-[var(--foreground-muted)]">
-                  Aucun match pour cette sélection.
-                </p>
+                <p className="text-sm text-[var(--foreground-muted)]">Aucun match pour cette sélection.</p>
               </div>
             ) : (
               currentMatches.map((match) => (
-                <MatchCardWithCommunity
-                  key={match.id}
-                  match={match}
-                  contestId={contestId}
-                  community={communityByMatch[match.id] ?? []}
-                />
+                <MatchCardWithCommunity key={match.id} match={match} contestId={contestId} community={communityByMatch[match.id] ?? []} />
               ))
             )
           )}
@@ -345,43 +327,23 @@ function KnockoutPlaceholder({ phase }: { phase: string }) {
   const label = ELIM_LABELS[phase] ?? phase
   return (
     <div className="flex flex-col items-center justify-center py-10 gap-3 text-center">
-      <div className="w-14 h-14 rounded-2xl bg-[var(--surface-elevated)] border border-[var(--border)] flex items-center justify-center text-2xl">
-        🏆
-      </div>
+      <div className="w-14 h-14 rounded-2xl bg-[var(--surface-elevated)] border border-[var(--border)] flex items-center justify-center text-2xl">🏆</div>
       <div>
         <p className="text-sm font-semibold text-[var(--foreground)]">{label}</p>
-        <p className="text-xs text-[var(--foreground-muted)] mt-1">
-          Les équipes qualifiées apparaîtront ici automatiquement.
-        </p>
-        <p className="text-[10px] text-[var(--foreground-subtle)] mt-1">
-          Tu pourras pronostiquer dès que les équipes sont connues.
-        </p>
+        <p className="text-xs text-[var(--foreground-muted)] mt-1">Les équipes qualifiées apparaîtront ici automatiquement.</p>
+        <p className="text-[10px] text-[var(--foreground-subtle)] mt-1">Tu pourras pronostiquer dès que les équipes sont connues.</p>
       </div>
     </div>
   )
 }
 
-function MatchCardWithCommunity({
-  match,
-  contestId,
-  community,
-}: {
-  match: MatchWithPrediction
-  contestId: string
-  community: CommunityPrediction[]
-}) {
+function MatchCardWithCommunity({ match, contestId, community }: { match: MatchWithPrediction; contestId: string; community: CommunityPrediction[] }) {
   const [showCommunity, setShowCommunity] = useState(false)
   const hasCommunity = match.isLocked && community.length > 0
 
   return (
     <div className="flex flex-col gap-0">
-      <MatchCard
-        match={match}
-        contestId={contestId}
-        initialHomeScore={match.prediction?.homeScore}
-        initialAwayScore={match.prediction?.awayScore}
-      />
-
+      <MatchCard match={match} contestId={contestId} initialHomeScore={match.prediction?.homeScore} initialAwayScore={match.prediction?.awayScore} />
       {hasCommunity && (
         <button
           onClick={() => setShowCommunity(!showCommunity)}
@@ -391,16 +353,9 @@ function MatchCardWithCommunity({
           {community.length} pronostic{community.length > 1 ? "s" : ""} · Voir la communauté
         </button>
       )}
-
       <AnimatePresence>
         {showCommunity && hasCommunity && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
             <CommunityMatchStats match={match} predictions={community} />
           </motion.div>
         )}
@@ -408,3 +363,4 @@ function MatchCardWithCommunity({
     </div>
   )
 }
+

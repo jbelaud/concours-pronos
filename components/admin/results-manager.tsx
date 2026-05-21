@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useMemo, useRef, useEffect } from "react"
+import { useState, useMemo, useRef, useEffect, useLayoutEffect, useCallback } from "react"
 import { AnimatePresence, motion } from "framer-motion"
+import { createPortal } from "react-dom"
 import { ResultEntry } from "./result-entry"
 import { KnockoutManager } from "./knockout-manager"
 import { cn } from "@/lib/utils"
@@ -32,12 +33,78 @@ function formatDayShort(dateStr: string): string {
   return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })
 }
 
+// Dropdown positionné en fixed pour échapper aux overflow parents
+function DayDropdown({
+  days,
+  activeDay,
+  matchesByDay,
+  onSelect,
+  onClose,
+  anchorRef,
+}: {
+  days: string[]
+  activeDay: string
+  matchesByDay: (day: string) => boolean
+  onSelect: (day: string) => void
+  onClose: () => void
+  anchorRef: React.RefObject<HTMLButtonElement | null>
+}) {
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 })
+
+  useLayoutEffect(() => {
+    if (anchorRef.current) {
+      const rect = anchorRef.current.getBoundingClientRect()
+      setPos({ top: rect.bottom + 4, left: rect.left, width: Math.max(rect.width, 100) })
+    }
+  }, [anchorRef])
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (anchorRef.current && !anchorRef.current.contains(e.target as Node)) {
+        onClose()
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [anchorRef, onClose])
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0, y: -4, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -4, scale: 0.97 }}
+      transition={{ duration: 0.12 }}
+      style={{ position: "fixed", top: pos.top, left: pos.left, minWidth: pos.width, zIndex: 9999 }}
+      className="bg-[var(--surface-elevated)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden"
+    >
+      <div className="max-h-52 overflow-y-auto">
+        {days.map((day) => {
+          const hasPending = matchesByDay(day)
+          return (
+            <button
+              key={day}
+              onClick={() => { onSelect(day); onClose() }}
+              className={cn(
+                "w-full flex items-center justify-between px-3 py-2 text-xs font-semibold transition-all hover:bg-[var(--surface)]",
+                activeDay === day ? "text-[var(--accent)]" : "text-[var(--foreground)]"
+              )}
+            >
+              {formatDayShort(day)}
+              {hasPending && <span className="w-1.5 h-1.5 rounded-full bg-[var(--warning)] ml-2 shrink-0" />}
+            </button>
+          )
+        })}
+      </div>
+    </motion.div>,
+    document.body
+  )
+}
+
 export function ResultsManager({ matches, allTeams, matchday, knockoutScoringRule }: Props) {
   const groupMatches = useMemo(() => matches.filter((m) => m.phase === "GROUP"), [matches])
   const knockoutMatches = useMemo(() => matches.filter((m) => m.phase !== "GROUP"), [matches])
 
   const hasGroups = groupMatches.length > 0
-  const hasKnockout = knockoutMatches.length > 0
 
   type Tab = "groups" | "knockout"
   const [tab, setTab] = useState<Tab>(hasGroups ? "groups" : "knockout")
@@ -53,13 +120,11 @@ export function ResultsManager({ matches, allTeams, matchday, knockoutScoringRul
     return Array.from(days).sort()
   }, [groupMatches])
 
-  // Filtre groupe : "day" ou lettre
   type GroupFilter = "day" | string
   const [groupFilter, setGroupFilter] = useState<GroupFilter>("day")
   const [showDayDropdown, setShowDayDropdown] = useState(false)
-  const dayDropdownRef = useRef<HTMLDivElement>(null)
+  const dayBtnRef = useRef<HTMLButtonElement>(null)
 
-  // Jour actif : premier jour avec des matchs non terminés
   const defaultDay = useMemo(() => {
     const pending = groupMatches.find((m) => m.status !== "FINISHED")
     if (pending) return pending.kickoff.toISOString().split("T")[0]
@@ -68,23 +133,17 @@ export function ResultsManager({ matches, allTeams, matchday, knockoutScoringRul
 
   const [activeDay, setActiveDay] = useState(defaultDay)
 
-  // Fermer dropdown si clic extérieur
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (dayDropdownRef.current && !dayDropdownRef.current.contains(e.target as Node)) {
-        setShowDayDropdown(false)
-      }
-    }
-    document.addEventListener("mousedown", handleClick)
-    return () => document.removeEventListener("mousedown", handleClick)
-  }, [])
-
   const groupMatchesFiltered = useMemo(() => {
     if (groupFilter === "day") {
       return groupMatches.filter((m) => m.kickoff.toISOString().split("T")[0] === activeDay)
     }
     return groupMatches.filter((m) => m.groupLetter === groupFilter)
   }, [groupMatches, groupFilter, activeDay])
+
+  const dayHasPending = useCallback(
+    (day: string) => groupMatches.filter((m) => m.kickoff.toISOString().split("T")[0] === day).some((m) => m.status !== "FINISHED"),
+    [groupMatches]
+  )
 
   // --- Onglet KNOCKOUT ---
   const knockoutPhases = useMemo(() => {
@@ -138,65 +197,30 @@ export function ResultsManager({ matches, allTeams, matchday, knockoutScoringRul
       {/* === FILTRE POULES === */}
       {tab === "groups" && (
         <>
-          <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-none items-center">
-            {/* Bouton Jour avec dropdown */}
-            <div className="relative shrink-0" ref={dayDropdownRef}>
-              <button
-                onClick={() => {
-                  setGroupFilter("day")
-                  setShowDayDropdown((v) => !v)
-                }}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border",
-                  groupFilter === "day"
-                    ? "bg-[var(--surface-elevated)] text-[var(--foreground)] border-[var(--border-strong)]"
-                    : "bg-[var(--surface)] text-[var(--foreground-muted)] border-[var(--border)]"
-                )}
-              >
-                <CalendarDays size={12} />
-                {groupFilter === "day" ? formatDayShort(activeDay) : "Jour"}
-                <ChevronDown size={10} className={cn("transition-transform", showDayDropdown && "rotate-180")} />
-              </button>
-
-              <AnimatePresence>
-                {showDayDropdown && groupFilter === "day" && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -4, scale: 0.97 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -4, scale: 0.97 }}
-                    transition={{ duration: 0.12 }}
-                    className="absolute top-full left-0 mt-1 z-20 bg-[var(--surface-elevated)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden min-w-[90px]"
-                  >
-                    <div className="max-h-52 overflow-y-auto">
-                      {groupDays.map((day) => {
-                        const dayMatches = groupMatches.filter((m) => m.kickoff.toISOString().split("T")[0] === day)
-                        const hasPending = dayMatches.some((m) => m.status !== "FINISHED")
-                        return (
-                          <button
-                            key={day}
-                            onClick={() => { setActiveDay(day); setShowDayDropdown(false) }}
-                            className={cn(
-                              "w-full flex items-center justify-between px-3 py-2 text-xs font-semibold transition-all hover:bg-[var(--surface)]",
-                              activeDay === day ? "text-[var(--accent)]" : "text-[var(--foreground)]"
-                            )}
-                          >
-                            {formatDayShort(day)}
-                            {hasPending && (
-                              <span className="w-1.5 h-1.5 rounded-full bg-[var(--warning)] ml-2" />
-                            )}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+          {/* Ligne de filtres — PAS de overflow-x-auto pour que le portal puisse s'afficher */}
+          <div className="flex gap-1 flex-wrap items-center">
+            {/* Bouton Jour */}
+            <button
+              ref={dayBtnRef}
+              onClick={() => {
+                setGroupFilter("day")
+                setShowDayDropdown((v) => !v)
+              }}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border shrink-0",
+                groupFilter === "day"
+                  ? "bg-[var(--surface-elevated)] text-[var(--foreground)] border-[var(--border-strong)]"
+                  : "bg-[var(--surface)] text-[var(--foreground-muted)] border-[var(--border)]"
+              )}
+            >
+              <CalendarDays size={12} />
+              {groupFilter === "day" ? formatDayShort(activeDay) : "Jour"}
+              <ChevronDown size={10} className={cn("transition-transform", showDayDropdown && "rotate-180")} />
+            </button>
 
             {/* Lettres de groupe */}
             {groupLetters.map((letter) => {
-              const lMatches = groupMatches.filter((m) => m.groupLetter === letter)
-              const hasPending = lMatches.some((m) => m.status !== "FINISHED")
+              const hasPending = groupMatches.filter((m) => m.groupLetter === letter).some((m) => m.status !== "FINISHED")
               return (
                 <button
                   key={letter}
@@ -216,6 +240,20 @@ export function ResultsManager({ matches, allTeams, matchday, knockoutScoringRul
               )
             })}
           </div>
+
+          {/* Dropdown en portal */}
+          <AnimatePresence>
+            {showDayDropdown && groupFilter === "day" && (
+              <DayDropdown
+                days={groupDays}
+                activeDay={activeDay}
+                matchesByDay={dayHasPending}
+                onSelect={setActiveDay}
+                onClose={() => setShowDayDropdown(false)}
+                anchorRef={dayBtnRef}
+              />
+            )}
+          </AnimatePresence>
 
           <div className="flex flex-col gap-2">
             {groupMatchesFiltered.length === 0 ? (
@@ -239,7 +277,7 @@ export function ResultsManager({ matches, allTeams, matchday, knockoutScoringRul
             </div>
           ) : (
             <>
-              <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-none">
+              <div className="flex gap-1 flex-wrap">
                 {KNOCKOUT_PHASES.filter((p) => knockoutPhases.includes(p)).map((phase) => {
                   const phaseMatches = knockoutMatches.filter((m) => m.phase === phase)
                   const hasPending = phaseMatches.some((m) => !m.homeTeamId || m.status !== "FINISHED")
