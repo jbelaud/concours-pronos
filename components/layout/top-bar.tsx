@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { auth } from "@/lib/auth"
 import { FootballAvatar } from "@/components/shared/football-avatar"
+import { LayoutGrid } from "lucide-react"
 
 interface TopBarProps {
   title?: string
@@ -24,13 +25,22 @@ export async function TopBar({ title = "ConcoursPronos" }: TopBarProps) {
         </Link>
 
         {session?.user && (
-          <Link href="/compte">
-            <FootballAvatar
-              seed={session.user.avatarSeed}
-              size={34}
-              className="ring-2 ring-[var(--border-strong)] hover:ring-[var(--accent)] transition-all"
-            />
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/concours"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--surface-elevated)] border border-[var(--border)] text-xs font-semibold text-[var(--foreground-muted)] hover:text-[var(--foreground)] hover:border-[var(--accent)]/40 transition-all"
+            >
+              <LayoutGrid size={13} />
+              Mes concours
+            </Link>
+            <Link href="/compte">
+              <FootballAvatar
+                seed={session.user.avatarSeed}
+                size={34}
+                className="ring-2 ring-[var(--border-strong)] hover:ring-[var(--accent)] transition-all"
+              />
+            </Link>
+          </div>
         )}
       </div>
     </header>
