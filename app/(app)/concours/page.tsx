@@ -169,7 +169,7 @@ function ContestCard({
 
   return (
     <Link
-      href={`/accueil?contestId=${contest.id}`}
+      href={isFinished ? `/concours/${contest.id}` : `/accueil?contestId=${contest.id}`}
       className={cn(
         "surface-card p-4 flex items-center justify-between transition-colors",
         isFinished
