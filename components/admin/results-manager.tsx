@@ -1,9 +1,11 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useRef, useEffect } from "react"
+import { AnimatePresence, motion } from "framer-motion"
 import { ResultEntry } from "./result-entry"
 import { KnockoutManager } from "./knockout-manager"
 import { cn } from "@/lib/utils"
+import { CalendarDays, ChevronDown } from "lucide-react"
 import type { MatchWithTeams, Team, MatchPhase } from "@/types"
 
 type Match = MatchWithTeams & { regularTimeHome: number | null; regularTimeAway: number | null }
@@ -19,15 +21,15 @@ const KNOCKOUT_PHASES = ["ROUND_OF_32", "ROUND_OF_16", "QUARTER_FINAL", "SEMI_FI
 const KNOCKOUT_LABELS: Record<string, string> = {
   ROUND_OF_32: "1/16",
   ROUND_OF_16: "1/8",
-  QUARTER_FINAL: "Quarts",
-  SEMI_FINAL: "Demies",
+  QUARTER_FINAL: "1/4",
+  SEMI_FINAL: "1/2",
   THIRD_PLACE: "3e place",
   FINAL: "Finale",
 }
 
-function formatDay(dateStr: string): string {
+function formatDayShort(dateStr: string): string {
   const d = new Date(dateStr + "T12:00:00Z")
-  return d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" })
+  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })
 }
 
 export function ResultsManager({ matches, allTeams, matchday, knockoutScoringRule }: Props) {
@@ -41,25 +43,48 @@ export function ResultsManager({ matches, allTeams, matchday, knockoutScoringRul
   const [tab, setTab] = useState<Tab>(hasGroups ? "groups" : "knockout")
 
   // --- Onglet POULES ---
-  // Jours disponibles (triés)
+  const groupLetters = useMemo(() => {
+    const letters = new Set(groupMatches.map((m) => m.groupLetter ?? ""))
+    return Array.from(letters).filter(Boolean).sort()
+  }, [groupMatches])
+
   const groupDays = useMemo(() => {
     const days = new Set(groupMatches.map((m) => m.kickoff.toISOString().split("T")[0]))
     return Array.from(days).sort()
   }, [groupMatches])
 
-  // Jour actif : le premier jour avec des matchs non terminés, sinon le dernier jour
-  const defaultGroupDay = useMemo(() => {
+  // Filtre groupe : "day" ou lettre
+  type GroupFilter = "day" | string
+  const [groupFilter, setGroupFilter] = useState<GroupFilter>("day")
+  const [showDayDropdown, setShowDayDropdown] = useState(false)
+  const dayDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Jour actif : premier jour avec des matchs non terminés
+  const defaultDay = useMemo(() => {
     const pending = groupMatches.find((m) => m.status !== "FINISHED")
     if (pending) return pending.kickoff.toISOString().split("T")[0]
     return groupDays[groupDays.length - 1] ?? groupDays[0] ?? ""
   }, [groupMatches, groupDays])
 
-  const [activeGroupDay, setActiveGroupDay] = useState(defaultGroupDay)
+  const [activeDay, setActiveDay] = useState(defaultDay)
 
-  const groupMatchesForDay = useMemo(
-    () => groupMatches.filter((m) => m.kickoff.toISOString().split("T")[0] === activeGroupDay),
-    [groupMatches, activeGroupDay]
-  )
+  // Fermer dropdown si clic extérieur
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (dayDropdownRef.current && !dayDropdownRef.current.contains(e.target as Node)) {
+        setShowDayDropdown(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [])
+
+  const groupMatchesFiltered = useMemo(() => {
+    if (groupFilter === "day") {
+      return groupMatches.filter((m) => m.kickoff.toISOString().split("T")[0] === activeDay)
+    }
+    return groupMatches.filter((m) => m.groupLetter === groupFilter)
+  }, [groupMatches, groupFilter, activeDay])
 
   // --- Onglet KNOCKOUT ---
   const knockoutPhases = useMemo(() => {
@@ -67,7 +92,6 @@ export function ResultsManager({ matches, allTeams, matchday, knockoutScoringRul
     return KNOCKOUT_PHASES.filter((p) => phases.has(p as MatchPhase))
   }, [knockoutMatches])
 
-  // Phase active par défaut : première phase avec des matchs sans équipes ou non terminés
   const defaultKnockoutPhase = useMemo(() => {
     for (const phase of KNOCKOUT_PHASES) {
       const phaseMatches = knockoutMatches.filter((m) => m.phase === phase)
@@ -94,9 +118,7 @@ export function ResultsManager({ matches, allTeams, matchday, knockoutScoringRul
             onClick={() => setTab("groups")}
             className={cn(
               "flex-1 py-2 rounded-lg text-xs font-semibold transition-all",
-              tab === "groups"
-                ? "gradient-accent text-white shadow-sm"
-                : "text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
+              tab === "groups" ? "gradient-accent text-white shadow-sm" : "text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
             )}
           >
             Poules
@@ -106,35 +128,88 @@ export function ResultsManager({ matches, allTeams, matchday, knockoutScoringRul
           onClick={() => setTab("knockout")}
           className={cn(
             "flex-1 py-2 rounded-lg text-xs font-semibold transition-all",
-            tab === "knockout"
-              ? "gradient-accent text-white shadow-sm"
-              : "text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
+            tab === "knockout" ? "gradient-accent text-white shadow-sm" : "text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
           )}
         >
           Phases Finales
         </button>
       </div>
 
-      {/* POULES : filtre par jour */}
+      {/* === FILTRE POULES === */}
       {tab === "groups" && (
         <>
-          <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-none">
-            {groupDays.map((day) => {
-              const dayMatches = groupMatches.filter((m) => m.kickoff.toISOString().split("T")[0] === day)
-              const hasPending = dayMatches.some((m) => m.status !== "FINISHED")
+          <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-none items-center">
+            {/* Bouton Jour avec dropdown */}
+            <div className="relative shrink-0" ref={dayDropdownRef}>
+              <button
+                onClick={() => {
+                  setGroupFilter("day")
+                  setShowDayDropdown((v) => !v)
+                }}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border",
+                  groupFilter === "day"
+                    ? "bg-[var(--surface-elevated)] text-[var(--foreground)] border-[var(--border-strong)]"
+                    : "bg-[var(--surface)] text-[var(--foreground-muted)] border-[var(--border)]"
+                )}
+              >
+                <CalendarDays size={12} />
+                {groupFilter === "day" ? formatDayShort(activeDay) : "Jour"}
+                <ChevronDown size={10} className={cn("transition-transform", showDayDropdown && "rotate-180")} />
+              </button>
+
+              <AnimatePresence>
+                {showDayDropdown && groupFilter === "day" && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                    transition={{ duration: 0.12 }}
+                    className="absolute top-full left-0 mt-1 z-20 bg-[var(--surface-elevated)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden min-w-[90px]"
+                  >
+                    <div className="max-h-52 overflow-y-auto">
+                      {groupDays.map((day) => {
+                        const dayMatches = groupMatches.filter((m) => m.kickoff.toISOString().split("T")[0] === day)
+                        const hasPending = dayMatches.some((m) => m.status !== "FINISHED")
+                        return (
+                          <button
+                            key={day}
+                            onClick={() => { setActiveDay(day); setShowDayDropdown(false) }}
+                            className={cn(
+                              "w-full flex items-center justify-between px-3 py-2 text-xs font-semibold transition-all hover:bg-[var(--surface)]",
+                              activeDay === day ? "text-[var(--accent)]" : "text-[var(--foreground)]"
+                            )}
+                          >
+                            {formatDayShort(day)}
+                            {hasPending && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-[var(--warning)] ml-2" />
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Lettres de groupe */}
+            {groupLetters.map((letter) => {
+              const lMatches = groupMatches.filter((m) => m.groupLetter === letter)
+              const hasPending = lMatches.some((m) => m.status !== "FINISHED")
               return (
                 <button
-                  key={day}
-                  onClick={() => setActiveGroupDay(day)}
+                  key={letter}
+                  onClick={() => { setGroupFilter(letter); setShowDayDropdown(false) }}
                   className={cn(
-                    "shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all relative whitespace-nowrap",
-                    activeGroupDay === day
-                      ? "bg-[var(--surface-elevated)] text-[var(--foreground)] border border-[var(--border-strong)]"
-                      : "bg-[var(--surface)] text-[var(--foreground-muted)] border border-[var(--border)]"
+                    "shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all relative border",
+                    groupFilter === letter
+                      ? "bg-[var(--surface-elevated)] text-[var(--foreground)] border-[var(--border-strong)]"
+                      : "bg-[var(--surface)] text-[var(--foreground-muted)] border-[var(--border)]"
                   )}
                 >
-                  {formatDay(day)}
-                  {hasPending && activeGroupDay !== day && (
+                  {letter}
+                  {hasPending && groupFilter !== letter && (
                     <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[var(--warning)]" />
                   )}
                 </button>
@@ -143,25 +218,18 @@ export function ResultsManager({ matches, allTeams, matchday, knockoutScoringRul
           </div>
 
           <div className="flex flex-col gap-2">
-            {groupMatchesForDay.length === 0 ? (
-              <div className="text-center py-8 text-[var(--foreground-muted)] text-sm">
-                Aucun match ce jour.
-              </div>
+            {groupMatchesFiltered.length === 0 ? (
+              <div className="text-center py-8 text-[var(--foreground-muted)] text-sm">Aucun match pour cette sélection.</div>
             ) : (
-              groupMatchesForDay.map((match) => (
-                <ResultEntry
-                  key={match.id}
-                  match={match}
-                  matchday={matchday}
-                  knockoutScoringRule={knockoutScoringRule}
-                />
+              groupMatchesFiltered.map((match) => (
+                <ResultEntry key={match.id} match={match} matchday={matchday} knockoutScoringRule={knockoutScoringRule} />
               ))
             )}
           </div>
         </>
       )}
 
-      {/* KNOCKOUT : filtre par phase + gestion équipes + résultats */}
+      {/* === KNOCKOUT === */}
       {tab === "knockout" && (
         <>
           {knockoutPhases.length === 0 ? (
@@ -171,7 +239,7 @@ export function ResultsManager({ matches, allTeams, matchday, knockoutScoringRul
             </div>
           ) : (
             <>
-              <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-none">
+              <div className="flex gap-1 overflow-x-auto pb-0.5 scrollbar-none">
                 {KNOCKOUT_PHASES.filter((p) => knockoutPhases.includes(p)).map((phase) => {
                   const phaseMatches = knockoutMatches.filter((m) => m.phase === phase)
                   const hasPending = phaseMatches.some((m) => !m.homeTeamId || m.status !== "FINISHED")
@@ -180,10 +248,10 @@ export function ResultsManager({ matches, allTeams, matchday, knockoutScoringRul
                       key={phase}
                       onClick={() => setActiveKnockoutPhase(phase)}
                       className={cn(
-                        "shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all relative",
+                        "shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all relative border",
                         activeKnockoutPhase === phase
-                          ? "bg-[var(--surface-elevated)] text-[var(--foreground)] border border-[var(--border-strong)]"
-                          : "bg-[var(--surface)] text-[var(--foreground-muted)] border border-[var(--border)]"
+                          ? "bg-[var(--surface-elevated)] text-[var(--foreground)] border-[var(--border-strong)]"
+                          : "bg-[var(--surface)] text-[var(--foreground-muted)] border-[var(--border)]"
                       )}
                     >
                       {KNOCKOUT_LABELS[phase] ?? phase}
@@ -206,9 +274,7 @@ export function ResultsManager({ matches, allTeams, matchday, knockoutScoringRul
                   />
                 ))}
                 {knockoutMatchesForPhase.length === 0 && (
-                  <div className="text-center py-8 text-[var(--foreground-muted)] text-sm">
-                    Aucun match pour cette phase.
-                  </div>
+                  <div className="text-center py-8 text-[var(--foreground-muted)] text-sm">Aucun match pour cette phase.</div>
                 )}
               </div>
             </>
@@ -220,10 +286,7 @@ export function ResultsManager({ matches, allTeams, matchday, knockoutScoringRul
 }
 
 function KnockoutMatchCard({
-  match,
-  allTeams,
-  matchday,
-  knockoutScoringRule,
+  match, allTeams, matchday, knockoutScoringRule,
 }: {
   match: Match
   allTeams: Team[]
@@ -234,20 +297,11 @@ function KnockoutMatchCard({
 
   return (
     <div className="flex flex-col gap-2">
-      {/* Assignation des équipes (toujours visible en knockout) */}
       <KnockoutManager match={match} allTeams={allTeams} />
-
-      {/* Saisie du résultat (uniquement si équipes assignées) */}
       {hasTeams && (
         <div className="pl-3 border-l-2 border-[var(--accent)]/20">
-          <p className="text-[10px] text-[var(--foreground-subtle)] uppercase tracking-wide mb-1.5">
-            Résultat
-          </p>
-          <ResultEntry
-            match={match}
-            matchday={matchday}
-            knockoutScoringRule={knockoutScoringRule}
-          />
+          <p className="text-[10px] text-[var(--foreground-subtle)] uppercase tracking-wide mb-1.5">Résultat</p>
+          <ResultEntry match={match} matchday={matchday} knockoutScoringRule={knockoutScoringRule} />
         </div>
       )}
     </div>

@@ -1,9 +1,10 @@
 "use client"
 
+import { useRef, useCallback } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { TrendingUp, TrendingDown, Minus, Trophy, Star } from "lucide-react"
+import { TrendingUp, TrendingDown, Minus, Trophy, Star, LocateFixed } from "lucide-react"
 import { FootballAvatar } from "@/components/shared/football-avatar"
-import { cn, getRankOrdinal } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import type { LeaderboardRow } from "@/types"
 
 interface LeaderboardListProps {
@@ -12,21 +13,37 @@ interface LeaderboardListProps {
   itmCount?: number
 }
 
-export function LeaderboardList({
-  entries,
-  currentUserId,
-  itmCount = 4,
-}: LeaderboardListProps) {
+export function LeaderboardList({ entries, currentUserId, itmCount = 4 }: LeaderboardListProps) {
+  const myRowRef = useRef<HTMLDivElement>(null)
+
+  const scrollToMe = useCallback(() => {
+    myRowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
+  }, [])
+
+  const myEntry = entries.find((e) => e.userId === currentUserId)
+
   return (
     <div className="flex flex-col gap-2">
+      {/* Bouton Me retrouver */}
+      {currentUserId && myEntry && (
+        <button
+          onClick={scrollToMe}
+          className="flex items-center justify-center gap-1.5 py-2 px-4 rounded-xl text-xs font-semibold bg-[var(--accent-dim)] text-[var(--accent)] border border-[var(--accent)]/30 hover:bg-[var(--accent)]/20 transition-all active:scale-95 self-end"
+        >
+          <LocateFixed size={13} />
+          Me retrouver ({myEntry.rank}e · {myEntry.totalPoints} pts)
+        </button>
+      )}
+
       <AnimatePresence initial={false}>
         {entries.map((entry, idx) => (
-          <LeaderboardRow
+          <LeaderboardRowItem
             key={entry.userId}
             entry={entry}
             index={idx}
             isCurrentUser={entry.userId === currentUserId}
             itmCount={itmCount}
+            ref={entry.userId === currentUserId ? myRowRef : undefined}
           />
         ))}
       </AnimatePresence>
@@ -34,17 +51,17 @@ export function LeaderboardList({
   )
 }
 
-function LeaderboardRow({
-  entry,
-  index,
-  isCurrentUser,
-  itmCount,
-}: {
-  entry: LeaderboardRow
-  index: number
-  isCurrentUser: boolean
-  itmCount: number
-}) {
+import { forwardRef } from "react"
+
+const LeaderboardRowItem = forwardRef<
+  HTMLDivElement,
+  {
+    entry: LeaderboardRow
+    index: number
+    isCurrentUser: boolean
+    itmCount: number
+  }
+>(function LeaderboardRowItem({ entry, index, isCurrentUser, itmCount }, ref) {
   const isFirst = entry.rank === 1
   const isSecond = entry.rank === 2
   const isThird = entry.rank === 3
@@ -58,13 +75,7 @@ function LeaderboardRow({
         ? "text-[var(--bronze)]"
         : "text-[var(--foreground-muted)]"
 
-  const glowClass = isFirst
-    ? "itm-gold"
-    : isSecond
-      ? "itm-silver"
-      : isThird
-        ? "itm-bronze"
-        : ""
+  const glowClass = isFirst ? "itm-gold" : isSecond ? "itm-silver" : isThird ? "itm-bronze" : ""
 
   const borderClass = isCurrentUser
     ? "border-[var(--accent)]/50"
@@ -74,6 +85,7 @@ function LeaderboardRow({
 
   return (
     <motion.div
+      ref={ref}
       layout
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
@@ -94,21 +106,13 @@ function LeaderboardRow({
       <FootballAvatar
         seed={entry.user.avatarSeed}
         size={40}
-        className={cn(
-          "ring-2",
-          isCurrentUser
-            ? "ring-[var(--accent)]"
-            : "ring-[var(--border)]"
-        )}
+        className={cn("ring-2", isCurrentUser ? "ring-[var(--accent)]" : "ring-[var(--border)]")}
       />
 
       {/* Name & stats */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          <span className={cn(
-            "font-semibold text-sm truncate",
-            isCurrentUser ? "text-[var(--accent)]" : "text-[var(--foreground)]"
-          )}>
+          <span className={cn("font-semibold text-sm truncate", isCurrentUser ? "text-[var(--accent)]" : "text-[var(--foreground)]")}>
             {entry.user.firstName} {entry.user.lastName}
           </span>
           {isCurrentUser && (
@@ -139,15 +143,9 @@ function LeaderboardRow({
       </div>
     </motion.div>
   )
-}
+})
 
-function MovementIndicator({
-  movement,
-  amount,
-}: {
-  movement: "up" | "down" | "same" | "new"
-  amount: number
-}) {
+function MovementIndicator({ movement, amount }: { movement: "up" | "down" | "same" | "new"; amount: number }) {
   if (movement === "new") {
     return (
       <span className="text-[10px] text-[var(--purple)] font-medium flex items-center gap-0.5">
@@ -156,7 +154,6 @@ function MovementIndicator({
       </span>
     )
   }
-
   if (movement === "up" && amount > 0) {
     return (
       <span className="text-[10px] text-[var(--success)] font-medium flex items-center gap-0.5">
@@ -165,7 +162,6 @@ function MovementIndicator({
       </span>
     )
   }
-
   if (movement === "down" && amount > 0) {
     return (
       <span className="text-[10px] text-[var(--error)] font-medium flex items-center gap-0.5">
@@ -174,7 +170,6 @@ function MovementIndicator({
       </span>
     )
   }
-
   return (
     <span className="text-[10px] text-[var(--foreground-subtle)] flex items-center gap-0.5">
       <Minus size={9} />
