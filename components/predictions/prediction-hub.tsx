@@ -2,10 +2,11 @@
 
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Trophy, Users, Star } from "lucide-react"
+import { Trophy, Users, Star, BarChart2 } from "lucide-react"
 import { MatchesTab } from "./tabs/matches-tab"
 import { TournamentTab } from "./tabs/tournament-tab"
 import { CommunityTab } from "./tabs/community-tab"
+import { ResultsTab } from "./tabs/results-tab"
 import { cn } from "@/lib/utils"
 import type { MatchWithPrediction, Team, ScorerCandidate } from "@/types"
 
@@ -63,11 +64,17 @@ interface Props {
   bonusTotal: number
   userId: string
   knockoutScoringRule: "REGULAR_TIME" | "FULL_TIME"
+  settings: {
+    pointsCorrectResult: number
+    pointsExactScore: number
+    pointsWrongResult: number
+  }
 }
 
 const TABS = [
   { id: "matches",    label: "Matchs",     icon: Trophy },
   { id: "tournament", label: "Tournoi",    icon: Star },
+  { id: "results",    label: "Résultats",  icon: BarChart2 },
   { id: "community",  label: "Communauté", icon: Users },
 ] as const
 
@@ -163,6 +170,12 @@ export function PredictionHub(props: Props) {
                 myBonusPred={props.myBonusPred}
                 firstMatchKickoff={props.firstMatchKickoff}
                 tournamentLocked={props.tournamentLocked}
+              />
+            )}
+            {activeTab === "results" && (
+              <ResultsTab
+                matches={props.matches}
+                settings={props.settings}
               />
             )}
             {activeTab === "community" && (

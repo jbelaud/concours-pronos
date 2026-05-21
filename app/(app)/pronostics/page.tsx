@@ -138,6 +138,11 @@ export default async function PronosticsPage({ searchParams }: { searchParams: P
       bonusTotal={bonusTotal}
       userId={userId}
       knockoutScoringRule={contest.settings?.knockoutScoringRule ?? "REGULAR_TIME"}
+      settings={{
+        pointsCorrectResult: contest.settings?.pointsCorrectResult ?? 3,
+        pointsExactScore: contest.settings?.pointsExactScore ?? 1,
+        pointsWrongResult: contest.settings?.pointsWrongResult ?? 0,
+      }}
     />
   )
 }

@@ -41,7 +41,7 @@ const PHASE_SHORT: Record<string, string> = {
 }
 
 export function CommunityTab({ matches, communityPredictions, communityBonusPredictions, groups, userId, tournamentLocked }: Props) {
-  const [activeSection, setActiveSection] = useState<"matches" | "bonus">("matches")
+  const [activeSection, setActiveSection] = useState<"matches" | "bonus" | "stats">("matches")
 
   const communityByMatch = useMemo(() => {
     const map: Record<string, CommunityPrediction[]> = {}
@@ -64,20 +64,27 @@ export function CommunityTab({ matches, communityPredictions, communityBonusPred
 
   const hasBonusPreds = tournamentLocked && communityBonusPredictions.length > 0
 
+  type Section = "matches" | "bonus" | "stats"
+  const sections: { id: Section; label: string }[] = [
+    { id: "matches", label: "⚽ Matchs" },
+    ...(hasBonusPreds ? [{ id: "bonus" as Section, label: "🏆 Tournoi" }] : []),
+    ...(hasBonusPreds ? [{ id: "stats" as Section, label: "📊 Stats" }] : []),
+  ]
+
   return (
     <div className="flex flex-col gap-3 pb-6">
       {hasBonusPreds && (
         <div className="flex gap-1 bg-[var(--surface-elevated)] rounded-xl p-1">
-          {(["matches", "bonus"] as const).map((s) => (
+          {sections.map((s) => (
             <button
-              key={s}
-              onClick={() => setActiveSection(s)}
+              key={s.id}
+              onClick={() => setActiveSection(s.id)}
               className={cn(
                 "flex-1 py-2 rounded-lg text-xs font-semibold transition-all",
-                activeSection === s ? "gradient-accent text-white shadow-sm" : "text-[var(--foreground-muted)]"
+                activeSection === s.id ? "gradient-accent text-white shadow-sm" : "text-[var(--foreground-muted)]"
               )}
             >
-              {s === "matches" ? "⚽ Matchs" : "🏆 Tournoi"}
+              {s.label}
             </button>
           ))}
         </div>
@@ -88,6 +95,9 @@ export function CommunityTab({ matches, communityPredictions, communityBonusPred
       )}
       {activeSection === "bonus" && hasBonusPreds && (
         <BonusSection predictions={communityBonusPredictions} groups={groups} userId={userId} />
+      )}
+      {activeSection === "stats" && hasBonusPreds && (
+        <StatsSection predictions={communityBonusPredictions} lockedMatches={lockedMatches} communityByMatch={communityByMatch} userId={userId} />
       )}
     </div>
   )
@@ -513,6 +523,157 @@ function BonusSection({
           />
         )
       })}
+    </div>
+  )
+}
+
+// ── Stats section ─────────────────────────────────────────────────────────────
+
+function StatsSection({
+  predictions,
+  lockedMatches,
+  communityByMatch,
+  userId,
+}: {
+  predictions: CommunityBonusPrediction[]
+  lockedMatches: MatchWithPrediction[]
+  communityByMatch: Record<string, CommunityPrediction[]>
+  userId: string
+}) {
+  const total = predictions.length
+
+  // Vainqueur stats
+  const winnerVotes = predictions.filter((p) => p.winner).reduce<Record<string, { name: string; flag: string | null; count: number }>>((acc, p) => {
+    const key = p.winner!.id
+    if (!acc[key]) acc[key] = { name: p.winner!.name, flag: p.winner!.flagEmoji, count: 0 }
+    acc[key].count++
+    return acc
+  }, {})
+  const topWinners = Object.values(winnerVotes).sort((a, b) => b.count - a.count).slice(0, 5)
+
+  // Buteur stats
+  const scorerVotes = predictions.filter((p) => p.topScorerFreeText).reduce<Record<string, number>>((acc, p) => {
+    const key = p.topScorerFreeText!
+    acc[key] = (acc[key] ?? 0) + 1
+    return acc
+  }, {})
+  const topScorers = Object.entries(scorerVotes).sort((a, b) => b[1] - a[1]).slice(0, 5)
+
+  // Stats matchs : taux de réussite global
+  const finishedMatches = lockedMatches.filter((m) => m.status === "FINISHED" && m.homeScore !== null)
+  const totalPreds = finishedMatches.reduce((sum, m) => sum + (communityByMatch[m.id]?.length ?? 0), 0)
+  const exactPreds = finishedMatches.reduce((sum, m) => {
+    const preds = communityByMatch[m.id] ?? []
+    return sum + preds.filter((p) => p.homeScore === m.homeScore && p.awayScore === m.awayScore).length
+  }, 0)
+  const correctPreds = finishedMatches.reduce((sum, m) => {
+    const preds = communityByMatch[m.id] ?? []
+    const realRes = m.homeScore! > m.awayScore! ? "home" : m.homeScore! === m.awayScore! ? "draw" : "away"
+    return sum + preds.filter((p) => {
+      const pr = p.homeScore > p.awayScore ? "home" : p.homeScore === p.awayScore ? "draw" : "away"
+      return pr === realRes && !(p.homeScore === m.homeScore && p.awayScore === m.awayScore)
+    }).length
+  }, 0)
+
+  const exactPct = totalPreds > 0 ? Math.round((exactPreds / totalPreds) * 100) : 0
+  const correctPct = totalPreds > 0 ? Math.round((correctPreds / totalPreds) * 100) : 0
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Taux de réussite communauté */}
+      {finishedMatches.length > 0 && (
+        <div className="surface-card p-3">
+          <div className="text-[11px] font-bold text-[var(--foreground-subtle)] uppercase tracking-wide mb-3">
+            Performances de la communauté
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="flex flex-col items-center gap-0.5 bg-[var(--surface-elevated)] rounded-xl py-2.5">
+              <span className="text-lg font-black text-[var(--success)]">{exactPct}%</span>
+              <span className="text-[9px] text-[var(--foreground-subtle)] text-center">Score exact</span>
+            </div>
+            <div className="flex flex-col items-center gap-0.5 bg-[var(--surface-elevated)] rounded-xl py-2.5">
+              <span className="text-lg font-black text-[var(--warning)]">{correctPct}%</span>
+              <span className="text-[9px] text-[var(--foreground-subtle)] text-center">Bonne issue</span>
+            </div>
+            <div className="flex flex-col items-center gap-0.5 bg-[var(--surface-elevated)] rounded-xl py-2.5">
+              <span className="text-lg font-black text-[var(--foreground-muted)]">{finishedMatches.length}</span>
+              <span className="text-[9px] text-[var(--foreground-subtle)] text-center">Matchs joués</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Top vainqueurs */}
+      {topWinners.length > 0 && (
+        <div className="surface-card overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-2.5 border-b border-[var(--border)]">
+            <span className="text-sm">🏆</span>
+            <span className="text-xs font-bold text-[var(--foreground)]">Vainqueur favori</span>
+            <span className="ml-auto text-[10px] text-[var(--foreground-subtle)]">{total} votes</span>
+          </div>
+          <div className="flex flex-col px-3 py-2 gap-2">
+            {topWinners.map((w, i) => {
+              const pct = Math.round((w.count / total) * 100)
+              const myVote = predictions.find((p) => p.user.id === userId)?.winner?.id
+              const isMe = Object.values(winnerVotes).find((v) => v.name === w.name) && predictions.find((p) => p.user.id === userId)?.winner?.name === w.name
+              return (
+                <div key={w.name} className="flex flex-col gap-1">
+                  <div className="flex items-center justify-between">
+                    <span className={cn("text-xs flex-1", isMe ? "text-[var(--accent)] font-semibold" : "text-[var(--foreground)]")}>
+                      {i === 0 ? "🥇 " : i === 1 ? "🥈 " : i === 2 ? "🥉 " : "    "}
+                      {w.flag ?? ""} {w.name}
+                      {isMe && <span className="text-[9px] ml-1 opacity-60">(toi)</span>}
+                    </span>
+                    <span className="text-[10px] text-[var(--foreground-subtle)] ml-2 shrink-0">{w.count} · {pct}%</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-[var(--surface-elevated)] overflow-hidden">
+                    <div
+                      className={cn("h-full rounded-full", isMe ? "bg-[var(--accent)]" : i === 0 ? "bg-[var(--gold)]" : "bg-[var(--foreground-subtle)]/40")}
+                      style={{ width: `${Math.round((w.count / topWinners[0].count) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Top buteurs */}
+      {topScorers.length > 0 && (
+        <div className="surface-card overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-2.5 border-b border-[var(--border)]">
+            <span className="text-sm">⚽</span>
+            <span className="text-xs font-bold text-[var(--foreground)]">Buteur favori</span>
+            <span className="ml-auto text-[10px] text-[var(--foreground-subtle)]">{total} votes</span>
+          </div>
+          <div className="flex flex-col px-3 py-2 gap-2">
+            {topScorers.map(([name, count], i) => {
+              const pct = Math.round((count / total) * 100)
+              const myScorer = predictions.find((p) => p.user.id === userId)?.topScorerFreeText
+              const isMe = myScorer === name
+              return (
+                <div key={name} className="flex flex-col gap-1">
+                  <div className="flex items-center justify-between">
+                    <span className={cn("text-xs flex-1", isMe ? "text-[var(--accent)] font-semibold" : "text-[var(--foreground)]")}>
+                      {i === 0 ? "🥇 " : i === 1 ? "🥈 " : i === 2 ? "🥉 " : "    "}
+                      {name}
+                      {isMe && <span className="text-[9px] ml-1 opacity-60">(toi)</span>}
+                    </span>
+                    <span className="text-[10px] text-[var(--foreground-subtle)] ml-2 shrink-0">{count} · {pct}%</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-[var(--surface-elevated)] overflow-hidden">
+                    <div
+                      className={cn("h-full rounded-full", isMe ? "bg-[var(--accent)]" : i === 0 ? "bg-[var(--gold)]" : "bg-[var(--foreground-subtle)]/40")}
+                      style={{ width: `${Math.round((count / topScorers[0][1]) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
