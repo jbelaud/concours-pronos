@@ -55,7 +55,7 @@ export function CompetitionTab({ allGroupStandings, bestThirds, roundOf32Matchup
         <SectionPill active={activeSection === "attack"} onClick={() => setActiveSection("attack")}>⚔️ Attaque</SectionPill>
         <SectionPill active={activeSection === "defense"} onClick={() => setActiveSection("defense")}>🛡️ Défense</SectionPill>
         <SectionPill active={activeSection === "bracket"} onClick={() => setActiveSection("bracket")}>
-          📊 Bracket {resolvedCount > 0 && <span className="opacity-70">({resolvedCount}/16)</span>}
+          📊 Tableau final {resolvedCount > 0 && <span className="opacity-70">({resolvedCount}/16)</span>}
         </SectionPill>
       </div>
 
