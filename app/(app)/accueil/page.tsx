@@ -5,6 +5,8 @@ import Link from "next/link"
 import { formatKickoff, PHASE_LABELS } from "@/lib/utils"
 import { ChevronRight, Trophy, Target, Clock, Banknote, Plus } from "lucide-react"
 import { ShareContestCard } from "@/components/shared/share-contest-card"
+import { CopyIbanButton } from "@/components/shared/copy-iban-button"
+import { CountdownTimer } from "@/components/shared/countdown-timer"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = { title: "Accueil" }
@@ -39,7 +41,7 @@ export default async function AccueilPage({ searchParams }: { searchParams: Prom
           _count: { select: { participants: true } },
           participants: { select: { hasPaid: true } },
           prizepool: { include: { payouts: { orderBy: { position: "asc" } } } },
-          template: { select: { name: true } },
+          template: { select: { name: true, startDate: true } },
         },
       },
     },
@@ -230,6 +232,11 @@ export default async function AccueilPage({ searchParams }: { searchParams: Prom
             />
           </div>
 
+          {/* Compte à rebours avant le début du tournoi */}
+          {activeContest.template?.startDate && new Date(activeContest.template.startDate) > new Date() && (
+            <CountdownTimer targetDate={activeContest.template.startDate.toISOString()} />
+          )}
+
           {/* Pending predictions alert */}
           {pendingPredictions > 0 && (
             <Link
@@ -265,8 +272,11 @@ export default async function AccueilPage({ searchParams }: { searchParams: Prom
                   </div>
                 </div>
               </div>
-              <div className="text-xs font-mono text-[var(--foreground)] bg-[var(--surface-elevated)] px-3 py-2 rounded-lg break-all">
-                {activeContest.iban}
+              <div className="flex items-center justify-between gap-3 bg-[var(--surface-elevated)] px-3 py-2.5 rounded-xl">
+                <span className="text-xs font-mono text-[var(--foreground)] break-all leading-snug flex-1">
+                  {activeContest.iban}
+                </span>
+                <CopyIbanButton iban={activeContest.iban} />
               </div>
               {activeContest.paymentInstructions && (
                 <div className="text-xs text-[var(--foreground-muted)] whitespace-pre-line">
