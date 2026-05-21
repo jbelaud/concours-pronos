@@ -8,16 +8,25 @@ import type { MatchWithPrediction } from "@/types"
 
 export const metadata: Metadata = { title: "Pronostics" }
 
-export default async function PronosticsPage() {
+export default async function PronosticsPage({ searchParams }: { searchParams: Promise<{ contestId?: string }> }) {
   const session = await auth()
   if (!session?.user) redirect("/login")
   const userId = session.user.id
 
-  const contest = await db.contest.findFirst({
-    where: { status: { in: ["ONGOING", "REGISTRATION", "DRAFT"] } },
-    orderBy: { createdAt: "desc" },
-    include: { settings: true },
+  const { contestId: requestedId } = await searchParams
+
+  // Concours auxquels l'utilisateur participe, actifs
+  const myParticipation = await db.contestParticipant.findFirst({
+    where: {
+      userId,
+      contest: { status: { in: ["ONGOING", "REGISTRATION", "DRAFT"] } },
+      ...(requestedId ? { contestId: requestedId } : {}),
+    },
+    include: { contest: { include: { settings: true } } },
+    orderBy: { joinedAt: "desc" },
   })
+
+  const contest = myParticipation?.contest ?? null
 
   if (!contest) {
     return (

@@ -23,10 +23,12 @@ const STATUS_COLORS: Record<string, string> = {
   FINISHED: "text-[var(--foreground-subtle)] bg-[var(--surface-elevated)]",
 }
 
-export default async function AccueilPage() {
+export default async function AccueilPage({ searchParams }: { searchParams: Promise<{ contestId?: string }> }) {
   const session = await auth()
   if (!session?.user) redirect("/login")
   const userId = session.user.id
+
+  const { contestId: requestedId } = await searchParams
 
   // Récupérer TOUS les concours auxquels l'utilisateur participe
   const myParticipations = await db.contestParticipant.findMany({
@@ -46,10 +48,17 @@ export default async function AccueilPage() {
 
   const myContestIds = myParticipations.map((p) => p.contestId)
 
-  // Concours actif principal (premier ONGOING ou REGISTRATION)
-  const activeContest = myParticipations.find(
-    (p) => p.contest.status === "ONGOING" || p.contest.status === "REGISTRATION"
-  )?.contest ?? null
+  // Tous les concours actifs de l'utilisateur
+  const myActiveContests = myParticipations
+    .map((p) => p.contest)
+    .filter((c) => c.status === "ONGOING" || c.status === "REGISTRATION" || c.status === "DRAFT")
+
+  // Concours actif sélectionné : celui demandé via ?contestId=, sinon le premier actif
+  const activeContest = (
+    requestedId
+      ? myActiveContests.find((c) => c.id === requestedId)
+      : null
+  ) ?? myActiveContests[0] ?? null
 
   // Autres concours accessibles mais non rejoints (publics)
   const otherActiveContests = await db.contest.findMany({
@@ -169,10 +178,30 @@ export default async function AccueilPage() {
         <h1 className="text-2xl font-black text-[var(--foreground)]">
           Bonjour, {session.user.firstName} 👋
         </h1>
-        {activeContest && (
-          <p className="text-sm text-[var(--foreground-muted)]">{activeContest.name}</p>
-        )}
       </div>
+
+      {/* Sélecteur de concours si plusieurs actifs */}
+      {myActiveContests.length > 1 && (
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+          {myActiveContests.map((c) => (
+            <Link
+              key={c.id}
+              href={`/accueil?contestId=${c.id}`}
+              className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border ${
+                activeContest?.id === c.id
+                  ? "gradient-accent text-white border-transparent"
+                  : "bg-[var(--surface-elevated)] text-[var(--foreground-muted)] border-[var(--border)] hover:border-[var(--accent)]/40"
+              }`}
+            >
+              {c.name}
+            </Link>
+          ))}
+        </div>
+      )}
+
+      {activeContest && (
+        <p className="text-sm text-[var(--foreground-muted)] -mt-2">{activeContest.name}</p>
+      )}
 
       {activeContest ? (
         <>
@@ -183,14 +212,14 @@ export default async function AccueilPage() {
               label="Classement"
               value={myEntry ? `${myEntry.rank}e` : "–"}
               sub={`${myEntry?.totalPoints ?? 0} pts`}
-              href="/classement"
+              href={`/classement${activeContest ? `?contestId=${activeContest.id}` : ""}`}
             />
             <StatCard
               icon="⚽"
               label="À pronostiquer"
               value={pendingPredictions.toString()}
               sub="matchs"
-              href="/pronostics"
+              href={`/pronostics${activeContest ? `?contestId=${activeContest.id}` : ""}`}
               highlight={pendingPredictions > 0}
             />
             <StatCard
@@ -204,7 +233,7 @@ export default async function AccueilPage() {
           {/* Pending predictions alert */}
           {pendingPredictions > 0 && (
             <Link
-              href="/pronostics"
+              href={`/pronostics?contestId=${activeContest.id}`}
               className="flex items-center justify-between p-4 rounded-xl bg-[var(--accent-dim)] border border-[var(--accent)]/30"
             >
               <div className="flex items-center gap-3">
