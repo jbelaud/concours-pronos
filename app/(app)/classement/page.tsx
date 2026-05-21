@@ -91,15 +91,43 @@ export default async function ClassementPage({
     }
   })
 
-  const mySnapshots = await db.rankingSnapshot.findMany({
-    where: { contestId: contest.id, userId },
+  // Load snapshots for current user + ITM players (to show on chart)
+  const itmUserIds = rows
+    .filter((r) => r.isITM)
+    .map((r) => r.user.id)
+  const chartUserIds = [...new Set([userId, ...itmUserIds])]
+
+  const allSnapshots = await db.rankingSnapshot.findMany({
+    where: { contestId: contest.id, userId: { in: chartUserIds } },
     orderBy: { matchday: "asc" },
+    include: { user: { select: { id: true, firstName: true } } },
   })
 
-  const evolutionData: RankingEvolutionPoint[] = mySnapshots.map((s) => ({
+  // Group by userId
+  const snapshotsByUser: Record<string, { matchday: number; rank: number; points: number }[]> = {}
+  for (const s of allSnapshots) {
+    if (!snapshotsByUser[s.userId]) snapshotsByUser[s.userId] = []
+    snapshotsByUser[s.userId].push({ matchday: s.matchday, rank: s.rank, points: s.totalPoints })
+  }
+
+  // Build chart series: me first, then ITM players (excluding me)
+  const chartSeries = chartUserIds
+    .filter((id) => snapshotsByUser[id]?.length)
+    .map((id) => {
+      const entry = rows.find((r) => r.user.id === id)
+      return {
+        userId: id,
+        userName: entry?.user.firstName ?? "?",
+        isMe: id === userId,
+        rank: entry?.rank ?? 99,
+        data: snapshotsByUser[id],
+      }
+    })
+
+  const evolutionData: RankingEvolutionPoint[] = (snapshotsByUser[userId] ?? []).map((s) => ({
     matchday: s.matchday,
     rank: s.rank,
-    points: s.totalPoints,
+    points: s.points,
   }))
 
   return (
@@ -115,9 +143,10 @@ export default async function ClassementPage({
             Mon évolution
           </h2>
           <RankingChart
-            data={evolutionData}
+            series={chartSeries}
             totalParticipants={entries.length}
-            userName={session.user.firstName}
+            currentUserId={userId}
+            itmCount={itmCount}
           />
         </section>
       )}
