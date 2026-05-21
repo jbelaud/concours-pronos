@@ -115,7 +115,7 @@ export default async function PronosticsPage({ searchParams }: { searchParams: P
   const completedGroupPreds = myBonusPred?.groupPredictions.length ?? 0
   const bonusCompleted =
     (myBonusPred?.winnerId ? 1 : 0) +
-    (myBonusPred?.topScorerFreeText ? 1 : 0) +
+    (myBonusPred?.topScorerId || myBonusPred?.topScorerFreeText ? 1 : 0) +
     (myBonusPred?.bestAttackId ? 1 : 0) +
     (myBonusPred?.bestDefenseId ? 1 : 0) +
     (completedGroupPreds > 0 ? 1 : 0)

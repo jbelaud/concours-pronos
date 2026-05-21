@@ -19,6 +19,7 @@ interface GroupWithTeams {
 interface BonusPred {
   id: string
   winnerId: string | null
+  topScorerId: string | null
   topScorerFreeText: string | null
   bestAttackId: string | null
   bestDefenseId: string | null
@@ -115,13 +116,14 @@ export function TournamentTab({
         icon={<Target size={15} className="text-[var(--success)]" />}
         isOpen={openSection === "scorer"}
         onToggle={() => toggle("scorer")}
-        isDone={!!myBonusPred?.topScorerFreeText}
+        isDone={!!(myBonusPred?.topScorerFreeText || myBonusPred?.topScorerId)}
         locked={tournamentLocked}
       >
         <ScorerInput
           value={myBonusPred?.topScorerFreeText ?? ""}
+          selectedId={myBonusPred?.topScorerId ?? null}
           candidates={scorerCandidates}
-          onSave={(text) => saveBonus(contestId, { topScorerFreeText: text })}
+          onSave={(text, id) => saveBonus(contestId, { topScorerFreeText: text, topScorerId: id ?? undefined })}
           locked={tournamentLocked}
         />
       </TournamentSection>
@@ -165,6 +167,7 @@ export function TournamentTab({
 
 async function saveBonus(contestId: string, data: {
   winnerId?: string
+  topScorerId?: string
   topScorerFreeText?: string
   bestAttackId?: string
   bestDefenseId?: string
@@ -275,65 +278,177 @@ function TeamSelector({
 // ── Scorer input ──────────────────────────────────────────────────────────────
 
 function ScorerInput({
-  value: initialValue, candidates, onSave, locked,
+  value: initialValue,
+  selectedId: initialSelectedId,
+  candidates,
+  onSave,
+  locked,
 }: {
   value: string
+  selectedId: string | null
   candidates: ScorerCandidate[]
-  onSave: (text: string) => void
+  onSave: (text: string, id: string | null) => void
   locked: boolean
 }) {
-  const [value, setValue] = useState(initialValue)
+  const [search, setSearch] = useState("")
+  const [selectedId, setSelectedId] = useState<string | null>(initialSelectedId)
+  const [freeText, setFreeText] = useState(initialSelectedId ? "" : initialValue)
+  const [mode, setMode] = useState<"list" | "free">(initialSelectedId ? "list" : initialValue && !initialSelectedId ? "free" : "list")
   const [isPending, startTransition] = useTransition()
 
-  const filtered = candidates.filter(
-    (c) => c.name.toLowerCase().includes(value.toLowerCase()) && value.length > 0
-  ).slice(0, 5)
+  const selectedCandidate = candidates.find((c) => c.id === selectedId)
 
-  const handleSave = (name: string) => {
-    setValue(name)
+  const filtered = candidates.filter((c) =>
+    search.length === 0 || c.name.toLowerCase().includes(search.toLowerCase())
+  )
+
+  const handleSelectCandidate = (c: ScorerCandidate) => {
+    if (locked) return
+    setSelectedId(c.id)
+    setFreeText("")
     startTransition(async () => {
-      await onSave(name)
+      await onSave(c.name, c.id)
     })
   }
 
+  const handleFreeTextSave = () => {
+    if (!freeText.trim() || locked) return
+    setSelectedId(null)
+    startTransition(async () => {
+      await onSave(freeText.trim(), null)
+    })
+  }
+
+  const handleClearSelection = () => {
+    setSelectedId(null)
+    setFreeText("")
+  }
+
+  // Équipe du candidat sélectionné
+  const teamFlag = selectedCandidate
+    ? (() => {
+        // On cherche dans les équipes via teamCode — on utilise juste le code pour affichage
+        return null
+      })()
+    : null
+
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onBlur={() => value && handleSave(value)}
-          placeholder="Ex : Kylian Mbappé"
-          disabled={locked}
-          className="flex-1 py-2.5 px-3 rounded-xl bg-[var(--surface-elevated)] border border-[var(--border)] text-[var(--foreground)] text-sm placeholder:text-[var(--foreground-subtle)] focus:outline-none focus:border-[var(--accent)] transition-colors disabled:opacity-60"
-        />
-        {!locked && value && (
-          <button
-            onClick={() => handleSave(value)}
-            disabled={isPending}
-            className="px-3 py-2 rounded-xl gradient-accent text-white text-xs font-semibold"
-          >
-            {isPending ? "..." : "OK"}
-          </button>
-        )}
-      </div>
-      {filtered.length > 0 && !locked && (
-        <div className="flex flex-col gap-1">
-          {filtered.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => handleSave(c.name)}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--surface-elevated)] border border-[var(--border)] hover:border-[var(--accent)]/40 text-sm text-[var(--foreground)] text-left transition-colors"
-            >
-              <span className="text-[var(--foreground-muted)] text-xs">{c.teamCode}</span>
-              {c.name}
+    <div className="flex flex-col gap-3">
+      {/* Sélection actuelle */}
+      {(selectedCandidate || (!selectedId && (freeText || initialValue))) && (
+        <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-[var(--success-dim)] border border-[var(--success)]/30">
+          <CheckCircle size={14} className="text-[var(--success)] shrink-0" />
+          <span className="text-sm font-bold text-[var(--foreground)] flex-1">
+            {selectedCandidate ? selectedCandidate.name : (freeText || initialValue)}
+          </span>
+          {selectedCandidate && (
+            <span className="text-[10px] text-[var(--foreground-muted)] bg-[var(--surface-elevated)] px-1.5 py-0.5 rounded-full">
+              {selectedCandidate.teamCode}
+            </span>
+          )}
+          {!locked && (
+            <button onClick={handleClearSelection} className="text-[var(--foreground-subtle)] hover:text-[var(--error)] transition-colors ml-1">
+              ✕
             </button>
-          ))}
+          )}
         </div>
       )}
+
+      {/* Toggle liste / texte libre */}
+      {!locked && (
+        <div className="flex rounded-xl bg-[var(--surface-elevated)] border border-[var(--border)] p-1 gap-1">
+          <button
+            type="button"
+            onClick={() => setMode("list")}
+            className={cn(
+              "flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all",
+              mode === "list" ? "gradient-accent text-white shadow-sm" : "text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
+            )}
+          >
+            Liste ({candidates.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("free")}
+            className={cn(
+              "flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all",
+              mode === "free" ? "gradient-accent text-white shadow-sm" : "text-[var(--foreground-muted)] hover:text-[var(--foreground)]"
+            )}
+          >
+            Autre joueur
+          </button>
+        </div>
+      )}
+
+      {/* Mode liste */}
+      {mode === "list" && !locked && (
+        <div className="flex flex-col gap-2">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Rechercher un joueur..."
+            className="w-full py-2 px-3 rounded-xl bg-[var(--surface-elevated)] border border-[var(--border)] text-[var(--foreground)] text-sm placeholder:text-[var(--foreground-subtle)] focus:outline-none focus:border-[var(--accent)] transition-colors"
+          />
+          <div className="flex flex-col gap-1 max-h-56 overflow-y-auto">
+            {filtered.map((c) => {
+              const isSelected = c.id === selectedId
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => handleSelectCandidate(c)}
+                  disabled={isPending}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-xl border text-left transition-all",
+                    isSelected
+                      ? "bg-[var(--accent-dim)] border-[var(--accent)]/50"
+                      : "bg-[var(--surface-elevated)] border-[var(--border)] hover:border-[var(--accent)]/30"
+                  )}
+                >
+                  <div className="flex flex-col flex-1 min-w-0">
+                    <span className={cn("text-sm font-semibold truncate", isSelected ? "text-[var(--accent)]" : "text-[var(--foreground)]")}>
+                      {c.name}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold text-[var(--foreground-muted)] bg-[var(--surface)] px-1.5 py-0.5 rounded-full shrink-0">
+                    {c.teamCode}
+                  </span>
+                  {isSelected && <CheckCircle size={13} className="text-[var(--accent)] shrink-0" />}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Mode texte libre */}
+      {mode === "free" && !locked && (
+        <div className="flex flex-col gap-2">
+          <p className="text-[10px] text-[var(--foreground-muted)]">
+            Joueur absent de la liste ? Saisis son nom manuellement.
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={freeText}
+              onChange={(e) => setFreeText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleFreeTextSave()}
+              placeholder="Ex : Erling Haaland"
+              className="flex-1 py-2.5 px-3 rounded-xl bg-[var(--surface-elevated)] border border-[var(--border)] text-[var(--foreground)] text-sm placeholder:text-[var(--foreground-subtle)] focus:outline-none focus:border-[var(--accent)] transition-colors"
+            />
+            <button
+              onClick={handleFreeTextSave}
+              disabled={isPending || !freeText.trim()}
+              className="px-3 py-2 rounded-xl gradient-accent text-white text-xs font-semibold disabled:opacity-50"
+            >
+              {isPending ? "..." : "OK"}
+            </button>
+          </div>
+        </div>
+      )}
+
       <p className="text-[10px] text-[var(--foreground-subtle)]">
-        Un seul choix possible · Validé manuellement par l&apos;admin en fin de tournoi
+        Un seul choix possible · Validé par l&apos;admin en fin de tournoi
       </p>
     </div>
   )

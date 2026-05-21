@@ -1,5 +1,6 @@
 import { db } from "@/lib/db"
 import { BonusManager } from "@/components/admin/bonus-manager"
+import { SyncScorersButton } from "@/components/admin/sync-scorers-button"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import type { Metadata } from "next"
@@ -118,7 +119,10 @@ export default async function BonusPage({ searchParams }: Props) {
         </div>
       ) : (
         <>
-          <p className="text-sm text-[var(--foreground-muted)] -mt-2">{contest.name}</p>
+          <div className="flex items-center justify-between -mt-2">
+            <p className="text-sm text-[var(--foreground-muted)]">{contest.name}</p>
+            <SyncScorersButton contestId={contest.id} scorerCount={scorerCandidates.length} />
+          </div>
           <BonusManager
             contestId={contest.id}
             teams={teams}

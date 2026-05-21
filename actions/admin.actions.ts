@@ -736,6 +736,46 @@ export async function addScorerCandidate(data: {
   return { success: true }
 }
 
+export async function syncScorerCandidatesFromTemplate(contestId: string) {
+  await requireAdmin()
+
+  const contest = await db.contest.findUnique({
+    where: { id: contestId },
+    include: { template: true },
+  })
+  if (!contest) return { error: "Concours introuvable." }
+
+  const { loadTournamentTemplate } = await import("@/lib/tournament")
+  let template
+  try {
+    template = loadTournamentTemplate(contest.template.slug)
+  } catch {
+    return { error: "Template introuvable." }
+  }
+
+  if (!template.scorerCandidates || template.scorerCandidates.length === 0) {
+    return { error: "Aucun candidat dans le template." }
+  }
+
+  // Upsert chaque candidat (ignore les doublons)
+  let added = 0
+  for (const s of template.scorerCandidates) {
+    const existing = await db.scorerCandidate.findFirst({
+      where: { contestId, name: s.name },
+    })
+    if (!existing) {
+      await db.scorerCandidate.create({
+        data: { contestId, name: s.name, teamCode: s.teamCode },
+      })
+      added++
+    }
+  }
+
+  revalidatePath("/admin/bonus")
+  revalidatePath("/pronostics")
+  return { success: true, added, total: template.scorerCandidates.length }
+}
+
 export async function markScorerWinner(data: {
   scorerCandidateId: string
   contestId: string

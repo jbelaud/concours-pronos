@@ -19,6 +19,7 @@ interface GroupWithTeams {
 interface BonusPred {
   id: string
   winnerId: string | null
+  topScorerId: string | null
   topScorerFreeText: string | null
   bestAttackId: string | null
   bestDefenseId: string | null
