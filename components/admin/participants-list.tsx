@@ -1,9 +1,9 @@
 ﻿"use client"
 
 import { useState, useTransition } from "react"
-import { toggleParticipantPaid } from "@/actions/admin.actions"
+import { toggleParticipantPaid, removeParticipant } from "@/actions/admin.actions"
 import { toast } from "sonner"
-import { CheckCircle, Circle } from "lucide-react"
+import { CheckCircle, Circle, UserX } from "lucide-react"
 
 interface Participant {
   id: string
@@ -22,12 +22,16 @@ interface Participant {
 }
 
 export function ParticipantsList({ participants }: { participants: Participant[] }) {
+  const [list, setList] = useState(participants)
+
+  const onRemove = (id: string) => setList((prev) => prev.filter((p) => p.id !== id))
+
   return (
     <div className="flex flex-col gap-2">
-      {participants.map((p) => (
-        <ParticipantRow key={p.id} participant={p} />
+      {list.map((p) => (
+        <ParticipantRow key={p.id} participant={p} onRemove={onRemove} />
       ))}
-      {participants.length === 0 && (
+      {list.length === 0 && (
         <div className="text-center py-8 text-[var(--foreground-muted)] text-sm">
           Aucun participant.
         </div>
@@ -36,7 +40,13 @@ export function ParticipantsList({ participants }: { participants: Participant[]
   )
 }
 
-function ParticipantRow({ participant }: { participant: Participant }) {
+function ParticipantRow({
+  participant,
+  onRemove,
+}: {
+  participant: Participant
+  onRemove: (id: string) => void
+}) {
   const [hasPaid, setHasPaid] = useState(participant.hasPaid)
   const [isPending, startTransition] = useTransition()
 
@@ -50,6 +60,19 @@ function ParticipantRow({ participant }: { participant: Participant }) {
         toast.error("Erreur lors de la mise à jour")
       } else {
         toast.success(next ? `${participant.user.firstName} a payé` : `${participant.user.firstName} marqué non payé`)
+      }
+    })
+  }
+
+  const remove = () => {
+    if (!confirm(`Exclure ${participant.user.firstName} ${participant.user.lastName} du concours ?`)) return
+    onRemove(participant.id)
+    startTransition(async () => {
+      const result = await removeParticipant(participant.id)
+      if (!result.success) {
+        toast.error("Erreur lors de la suppression")
+      } else {
+        toast.success(`${participant.user.firstName} ${participant.user.lastName} exclu du concours`)
       }
     })
   }
@@ -84,7 +107,7 @@ function ParticipantRow({ participant }: { participant: Participant }) {
             : (participant.user.email ?? "")}
         </div>
       </div>
-      <div className="shrink-0">
+      <div className="flex items-center gap-2 shrink-0">
         <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
           hasPaid
             ? "bg-[var(--success-dim)] text-[var(--success)]"
@@ -92,6 +115,14 @@ function ParticipantRow({ participant }: { participant: Participant }) {
         }`}>
           {hasPaid ? "Payé" : "En attente"}
         </span>
+        <button
+          onClick={remove}
+          disabled={isPending}
+          title="Exclure du concours"
+          className="text-[var(--foreground-subtle)] hover:text-[var(--error)] transition-colors disabled:opacity-50"
+        >
+          <UserX size={16} />
+        </button>
       </div>
     </div>
   )

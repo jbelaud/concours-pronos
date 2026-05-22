@@ -716,6 +716,13 @@ export async function toggleParticipantPaid(participantId: string, hasPaid: bool
   return { success: true }
 }
 
+export async function removeParticipant(participantId: string) {
+  await requireAdmin()
+  await db.contestParticipant.delete({ where: { id: participantId } })
+  revalidatePath("/admin/participants")
+  return { success: true }
+}
+
 export async function createManualUser(data: {
   firstName: string
   lastName: string
