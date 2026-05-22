@@ -13,12 +13,28 @@ export async function TopBar({ title = "ConcoursPronos" }: TopBarProps) {
   const session = await auth()
 
   let subProfiles: { id: string; firstName: string; lastName: string; avatarSeed: string }[] = []
+  let ownerFirstName = session?.user?.firstName ?? ""
+  let ownerLastName = session?.user?.lastName ?? ""
+  let ownerAvatarSeed = session?.user?.avatarSeed ?? ""
+
   if (session?.user?.ownerId) {
-    subProfiles = await db.subProfile.findMany({
-      where: { ownerId: session.user.ownerId },
-      select: { id: true, firstName: true, lastName: true, avatarSeed: true },
-      orderBy: { createdAt: "asc" },
-    })
+    const [owner, subs] = await Promise.all([
+      db.user.findUnique({
+        where: { id: session.user.ownerId },
+        select: { firstName: true, lastName: true, avatarSeed: true },
+      }),
+      db.subProfile.findMany({
+        where: { ownerId: session.user.ownerId },
+        select: { id: true, firstName: true, lastName: true, avatarSeed: true },
+        orderBy: { createdAt: "asc" },
+      }),
+    ])
+    if (owner) {
+      ownerFirstName = owner.firstName
+      ownerLastName = owner.lastName
+      ownerAvatarSeed = owner.avatarSeed
+    }
+    subProfiles = subs
   }
 
   return (
@@ -44,13 +60,9 @@ export async function TopBar({ title = "ConcoursPronos" }: TopBarProps) {
               Mes concours
             </Link>
             <ProfileSwitcher
-              ownerFirstName={session.user.firstName}
-              ownerLastName={session.user.lastName}
-              ownerAvatarSeed={
-                session.user.activeSubProfileId
-                  ? (subProfiles.find((s) => s.id === session.user.activeSubProfileId)?.avatarSeed ?? session.user.avatarSeed)
-                  : session.user.avatarSeed
-              }
+              ownerFirstName={ownerFirstName}
+              ownerLastName={ownerLastName}
+              ownerAvatarSeed={ownerAvatarSeed}
               subProfiles={subProfiles}
               activeSubProfileId={session.user.activeSubProfileId}
               activeFirstName={session.user.firstName}

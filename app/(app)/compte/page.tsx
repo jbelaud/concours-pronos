@@ -115,7 +115,7 @@ export default async function ComptePage({
     <div className="flex flex-col gap-4">
       {/* Profile card */}
       <div className="surface-card p-5 flex flex-col items-center gap-3">
-        <FootballAvatar seed={session.user.avatarSeed} size={80} className="ring-4 ring-[var(--accent)]/30" />
+        <FootballAvatar seed={user.avatarSeed} size={80} className="ring-4 ring-[var(--accent)]/30" />
         <div className="text-center">
           <h1 className="text-xl font-black text-[var(--foreground)]">{user.firstName} {user.lastName}</h1>
           <p className="text-sm text-[var(--foreground-muted)]">{user.email}</p>
