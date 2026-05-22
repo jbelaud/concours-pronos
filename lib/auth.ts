@@ -6,7 +6,7 @@ import bcrypt from "bcryptjs"
 import { db } from "@/lib/db"
 import type { Role } from "@prisma/client"
 
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
   adapter: PrismaAdapter(db),
   session: { strategy: "jwt" },
   pages: {
@@ -72,7 +72,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return true
     },
 
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
+      // Initial sign-in
       if (user) {
         token.id = user.id
         token.role = (user as { role?: Role }).role ?? "USER"
@@ -80,44 +81,35 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.lastName = (user as { lastName?: string }).lastName ?? ""
         token.avatarSeed = (user as { avatarSeed?: string }).avatarSeed ?? ""
         token.activeSubProfileId = null
+        token.activeGhostUserId = null
+        return token
       }
 
-      // Refresh from DB on each new session (keep role up to date)
-      if (token.id && !user) {
+      // unstable_update call — apply the patch directly, no DB refresh
+      if (trigger === "update" && session) {
+        const patch = session as {
+          activeSubProfileId?: string | null
+          activeGhostUserId?: string | null
+          firstName?: string
+          lastName?: string
+          avatarSeed?: string
+        }
+        if ("activeSubProfileId" in patch) token.activeSubProfileId = patch.activeSubProfileId ?? null
+        if ("activeGhostUserId" in patch) token.activeGhostUserId = patch.activeGhostUserId ?? null
+        if (patch.firstName !== undefined) token.firstName = patch.firstName
+        if (patch.lastName !== undefined) token.lastName = patch.lastName
+        if (patch.avatarSeed !== undefined) token.avatarSeed = patch.avatarSeed
+        return token
+      }
+
+      // Normal token refresh — only refresh role from DB, keep firstName/lastName/avatarSeed as-is
+      // (they were set at sign-in or via update trigger, we trust the token)
+      if (token.id) {
         const dbUser = await db.user.findUnique({
           where: { id: token.id as string },
-          select: {
-            role: true,
-            firstName: true,
-            lastName: true,
-            avatarSeed: true,
-          },
+          select: { role: true },
         })
-        if (dbUser) {
-          token.role = dbUser.role
-          token.firstName = dbUser.firstName
-          token.lastName = dbUser.lastName
-          token.avatarSeed = dbUser.avatarSeed
-        }
-      }
-
-      // When a sub-profile is active, override display fields with ghost user data
-      if (token.activeSubProfileId) {
-        const sub = await db.subProfile.findUnique({
-          where: { id: token.activeSubProfileId as string },
-          select: { firstName: true, lastName: true, avatarSeed: true, ghostUserId: true, ownerId: true },
-        })
-        if (sub && sub.ownerId === token.id) {
-          token.firstName = sub.firstName
-          token.lastName = sub.lastName
-          token.avatarSeed = sub.avatarSeed
-          token.activeGhostUserId = sub.ghostUserId
-        } else {
-          token.activeSubProfileId = null
-          token.activeGhostUserId = null
-        }
-      } else {
-        token.activeGhostUserId = null
+        if (dbUser) token.role = dbUser.role
       }
 
       return token

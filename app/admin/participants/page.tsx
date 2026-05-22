@@ -2,18 +2,27 @@ import { db } from "@/lib/db"
 import { ParticipantsList } from "@/components/admin/participants-list"
 import { AddUserForm } from "@/components/admin/add-user-form"
 import { Users, Banknote } from "lucide-react"
+import Link from "next/link"
 import type { Metadata } from "next"
 
 export const metadata: Metadata = { title: "Participants" }
 
-export default async function ParticipantsPage() {
+export default async function ParticipantsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ contestId?: string }>
+}) {
+  const { contestId: selectedId } = await searchParams
+
   const contests = await db.contest.findMany({
     where: { status: { in: ["DRAFT", "REGISTRATION", "ONGOING"] } },
     select: { id: true, name: true, buyIn: true, iban: true, paymentInstructions: true },
     orderBy: { createdAt: "desc" },
   })
 
-  const activeContest = contests[0]
+  const activeContest = selectedId
+    ? (contests.find((c) => c.id === selectedId) ?? contests[0])
+    : contests[0]
   const activeContestId = activeContest?.id
 
   const participants = activeContestId
@@ -52,6 +61,28 @@ export default async function ParticipantsPage() {
           {activeContest?.buyIn && activeContest.buyIn > 0 ? ` · ${totalCollected}€ collectés` : ""}
         </p>
       </div>
+
+      {/* Sélecteur de concours si plusieurs actifs */}
+      {contests.length > 1 && (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-xs font-semibold text-[var(--foreground-muted)] uppercase tracking-wide">Concours</p>
+          <div className="flex flex-wrap gap-2">
+            {contests.map((c) => (
+              <Link
+                key={c.id}
+                href={`/admin/participants?contestId=${c.id}`}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+                  c.id === activeContestId
+                    ? "bg-[var(--accent)] text-white border-[var(--accent)]"
+                    : "bg-[var(--surface-elevated)] text-[var(--foreground-muted)] border-[var(--border)] hover:border-[var(--accent)]/40"
+                }`}
+              >
+                {c.name}
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Récap paiements */}
       {activeContest && activeContest.buyIn > 0 && (
