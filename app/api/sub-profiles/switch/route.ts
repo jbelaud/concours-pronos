@@ -15,14 +15,6 @@ export async function POST(req: Request) {
   const { subProfileId } = await req.json()
   const ownerId = session.user.ownerId
 
-  // null means switch back to main profile
-  if (subProfileId !== null) {
-    const sub = await db.subProfile.findUnique({ where: { id: subProfileId } })
-    if (!sub || sub.ownerId !== ownerId) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 })
-    }
-  }
-
   // Re-encode the JWT with the new activeSubProfileId
   const cookieStore = await cookies()
   const existingToken = cookieStore.get(SESSION_COOKIE)?.value
@@ -37,13 +29,29 @@ export async function POST(req: Request) {
 
   if (!token) return NextResponse.json({ error: "Invalid token" }, { status: 401 })
 
-  token.activeSubProfileId = subProfileId
-
-  // Clear cached ghost fields so jwt callback recomputes them fresh
-  token.activeGhostUserId = null
-  token.firstName = undefined
-  token.lastName = undefined
-  token.avatarSeed = undefined
+  if (subProfileId !== null) {
+    const sub = await db.subProfile.findUnique({
+      where: { id: subProfileId },
+      select: { firstName: true, lastName: true, avatarSeed: true, ghostUserId: true },
+    })
+    if (!sub) return NextResponse.json({ error: "Not found" }, { status: 404 })
+    token.activeSubProfileId = subProfileId
+    token.activeGhostUserId = sub.ghostUserId
+    token.firstName = sub.firstName
+    token.lastName = sub.lastName
+    token.avatarSeed = sub.avatarSeed
+  } else {
+    // Switch back to main profile: restore from DB
+    const owner = await db.user.findUnique({
+      where: { id: ownerId },
+      select: { firstName: true, lastName: true, avatarSeed: true },
+    })
+    token.activeSubProfileId = null
+    token.activeGhostUserId = null
+    token.firstName = owner?.firstName ?? ""
+    token.lastName = owner?.lastName ?? ""
+    token.avatarSeed = owner?.avatarSeed ?? ""
+  }
 
   const newToken = await encode({
     token,
