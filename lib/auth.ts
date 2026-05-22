@@ -54,34 +54,44 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth({
     }),
   ],
   callbacks: {
-    async signIn({ user, account }) {
-      if (account?.provider === "google" && user.email) {
-        const nameParts = (user.name ?? "").trim().split(/\s+/)
-        const firstName = nameParts[0] ?? ""
-        const lastName = nameParts.slice(1).join(" ")
-
-        const data: Record<string, string> = {}
-        if (firstName) data.firstName = firstName
-        if (lastName) data.lastName = lastName
-        if (user.email === process.env.ADMIN_EMAIL) data.role = "ADMIN"
-
-        if (Object.keys(data).length > 0) {
-          await db.user.update({ where: { email: user.email }, data }).catch(() => {})
-        }
-      }
+    async signIn() {
       return true
     },
 
-    async jwt({ token, user, trigger, session }) {
+    async jwt({ token, user, trigger, session, account, profile }) {
       // Initial sign-in
       if (user) {
         token.id = user.id
         token.role = (user as { role?: Role }).role ?? "USER"
-        token.firstName = (user as { firstName?: string }).firstName ?? ""
-        token.lastName = (user as { lastName?: string }).lastName ?? ""
-        token.avatarSeed = (user as { avatarSeed?: string }).avatarSeed ?? ""
         token.activeSubProfileId = null
         token.activeGhostUserId = null
+
+        // Populate firstName/lastName from Google profile if not already set
+        const googleName = (profile as { name?: string } | undefined)?.name ?? (user.name ?? "")
+        const nameParts = googleName.trim().split(/\s+/)
+        const googleFirst = nameParts[0] ?? ""
+        const googleLast = nameParts.slice(1).join(" ")
+
+        const existingFirst = (user as { firstName?: string }).firstName ?? ""
+        const existingLast = (user as { lastName?: string }).lastName ?? ""
+
+        const firstName = existingFirst || googleFirst
+        const lastName = existingLast || googleLast
+
+        token.firstName = firstName
+        token.lastName = lastName
+        token.avatarSeed = (user as { avatarSeed?: string }).avatarSeed ?? ""
+
+        // Persist to DB if needed (user already created by adapter at this point)
+        const data: Record<string, string> = {}
+        if (!existingFirst && googleFirst) data.firstName = googleFirst
+        if (!existingLast && googleLast) data.lastName = googleLast
+        if (account?.provider === "google" && user.email === process.env.ADMIN_EMAIL) data.role = "ADMIN"
+        if (Object.keys(data).length > 0) {
+          await db.user.update({ where: { id: user.id as string }, data }).catch(() => {})
+          if (data.role) token.role = data.role as Role
+        }
+
         return token
       }
 
