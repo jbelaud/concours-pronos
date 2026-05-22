@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { FootballAvatar } from "@/components/shared/football-avatar"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Plus, Trash2, Users, CheckCircle2, Loader2 } from "lucide-react"
 
 interface SubProfile {
@@ -35,6 +36,7 @@ export function SubProfilesSection({
   const [loading, setLoading] = useState(false)
   const [switching, setSwitching] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [error, setError] = useState("")
 
   async function handleCreate(e: React.FormEvent) {
@@ -61,20 +63,20 @@ export function SubProfilesSection({
   async function handleSwitch(subProfileId: string | null) {
     setSwitching(subProfileId ?? "__main__")
     try {
-      await fetch("/api/sub-profiles/switch", {
+      const res = await fetch("/api/sub-profiles/switch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subProfileId }),
       })
-      router.refresh()
+      if (res.ok) router.refresh()
     } finally {
       setSwitching(null)
     }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Supprimer ce sous-profil ? Toutes ses données de jeu seront également supprimées.")) return
     setDeleting(id)
+    setConfirmDeleteId(null)
     try {
       await fetch(`/api/sub-profiles/${id}`, { method: "DELETE" })
       setSubProfiles((prev) => prev.filter((s) => s.id !== id))
@@ -88,8 +90,18 @@ export function SubProfilesSection({
 
   const isMainActive = !activeSubProfileId
 
+  const confirmTarget = subProfiles.find((s) => s.id === confirmDeleteId)
+
   return (
     <section className="flex flex-col gap-3">
+      <ConfirmDialog
+        open={!!confirmDeleteId}
+        title="Supprimer le sous-profil"
+        description={confirmTarget ? `Supprimer ${confirmTarget.firstName} ${confirmTarget.lastName} ? Tous ses pronostics et classements seront effacés. Son compte n'est pas affecté.` : ""}
+        confirmLabel="Supprimer"
+        onConfirm={() => confirmDeleteId && handleDelete(confirmDeleteId)}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-[var(--foreground-muted)]">
           <Users size={14} />
@@ -172,7 +184,7 @@ export function SubProfilesSection({
             isActive={activeSubProfileId === sub.id}
             isSwitching={switching === sub.id}
             onSwitch={() => handleSwitch(sub.id)}
-            onDelete={() => handleDelete(sub.id)}
+            onDelete={() => setConfirmDeleteId(sub.id)}
             isDeleting={deleting === sub.id}
           />
         ))}

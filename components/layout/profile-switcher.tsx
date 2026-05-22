@@ -40,13 +40,12 @@ export function ProfileSwitcher({
   async function handleSwitch(subProfileId: string | null) {
     setSwitching(subProfileId ?? "__main__")
     try {
-      await fetch("/api/sub-profiles/switch", {
+      const res = await fetch("/api/sub-profiles/switch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subProfileId }),
       })
-      setOpen(false)
-      router.refresh()
+      if (res.ok) { setOpen(false); router.refresh() }
     } finally {
       setSwitching(null)
     }
