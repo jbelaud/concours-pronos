@@ -718,7 +718,23 @@ export async function toggleParticipantPaid(participantId: string, hasPaid: bool
 
 export async function removeParticipant(participantId: string) {
   await requireAdmin()
-  await db.contestParticipant.delete({ where: { id: participantId } })
+
+  const participant = await db.contestParticipant.findUnique({
+    where: { id: participantId },
+    select: { contestId: true, userId: true },
+  })
+  if (!participant) return { success: true }
+
+  const { contestId, userId } = participant
+
+  await db.$transaction([
+    db.prediction.deleteMany({ where: { contestId, userId } }),
+    db.tournamentPrediction.deleteMany({ where: { contestId, userId } }),
+    db.leaderboardEntry.deleteMany({ where: { contestId, userId } }),
+    db.rankingSnapshot.deleteMany({ where: { contestId, userId } }),
+    db.contestParticipant.delete({ where: { id: participantId } }),
+  ])
+
   revalidatePath("/admin/participants")
   return { success: true }
 }

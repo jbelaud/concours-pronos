@@ -84,7 +84,7 @@ function ParticipantRow({
     <ConfirmDialog
       open={confirmOpen}
       title="Exclure du concours"
-      description={`Retirer ${participant.user.firstName} ${participant.user.lastName} de ce concours ? Ses pronostics seront conservés mais il n'apparaîtra plus dans le classement.`}
+      description={`Retirer ${participant.user.firstName} ${participant.user.lastName} de ce concours ? Ses pronostics et son classement seront supprimés. Son compte reste intact.`}
       confirmLabel="Exclure"
       onConfirm={confirmRemove}
       onCancel={() => setConfirmOpen(false)}
