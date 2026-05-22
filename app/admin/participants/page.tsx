@@ -125,7 +125,7 @@ export default async function ParticipantsPage({
             Liste des participants
           </h2>
         </div>
-        <ParticipantsList participants={participants} />
+        <ParticipantsList key={activeContestId} participants={participants} />
       </section>
     </div>
   )

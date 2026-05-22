@@ -32,7 +32,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             { href: "/admin", label: "Accueil", icon: Home },
             { href: "/admin/resultats", label: "Résultats", icon: ClipboardCheck },
             { href: "/admin/bonus", label: "Bonus", icon: Star },
-            { href: "/admin/participants", label: "Joueurs", icon: Users },
+            { href: "/admin/participants", label: "Participants", icon: Users },
             { href: "/admin/invitations", label: "Invitations", icon: UserPlus },
             { href: "/admin/concours", label: "Concours", icon: Settings },
           ].map((item) => (
