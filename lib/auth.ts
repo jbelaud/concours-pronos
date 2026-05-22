@@ -55,13 +55,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     async signIn({ user, account }) {
-      // Pour Google OAuth : l'admin est automatiquement promu
       if (account?.provider === "google" && user.email) {
-        if (user.email === process.env.ADMIN_EMAIL) {
-          await db.user.update({
-            where: { email: user.email },
-            data: { role: "ADMIN" },
-          }).catch(() => {})
+        const nameParts = (user.name ?? "").trim().split(/\s+/)
+        const firstName = nameParts[0] ?? ""
+        const lastName = nameParts.slice(1).join(" ")
+
+        const data: Record<string, string> = {}
+        if (firstName) data.firstName = firstName
+        if (lastName) data.lastName = lastName
+        if (user.email === process.env.ADMIN_EMAIL) data.role = "ADMIN"
+
+        if (Object.keys(data).length > 0) {
+          await db.user.update({ where: { email: user.email }, data }).catch(() => {})
         }
       }
       return true
