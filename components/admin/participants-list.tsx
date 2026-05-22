@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react"
 import { toggleParticipantPaid, removeParticipant } from "@/actions/admin.actions"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { toast } from "sonner"
 import { CheckCircle, Circle, UserX } from "lucide-react"
 
@@ -49,6 +50,7 @@ function ParticipantRow({
 }) {
   const [hasPaid, setHasPaid] = useState(participant.hasPaid)
   const [isPending, startTransition] = useTransition()
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   const toggle = () => {
     const next = !hasPaid
@@ -64,8 +66,8 @@ function ParticipantRow({
     })
   }
 
-  const remove = () => {
-    if (!confirm(`Exclure ${participant.user.firstName} ${participant.user.lastName} du concours ?`)) return
+  const confirmRemove = () => {
+    setConfirmOpen(false)
     onRemove(participant.id)
     startTransition(async () => {
       const result = await removeParticipant(participant.id)
@@ -78,6 +80,15 @@ function ParticipantRow({
   }
 
   return (
+    <>
+    <ConfirmDialog
+      open={confirmOpen}
+      title="Exclure du concours"
+      description={`Retirer ${participant.user.firstName} ${participant.user.lastName} de ce concours ? Ses pronostics seront conservés mais il n'apparaîtra plus dans le classement.`}
+      confirmLabel="Exclure"
+      onConfirm={confirmRemove}
+      onCancel={() => setConfirmOpen(false)}
+    />
     <div className="surface-card p-3 flex items-center gap-3">
       <button
         onClick={toggle}
@@ -116,7 +127,7 @@ function ParticipantRow({
           {hasPaid ? "Payé" : "En attente"}
         </span>
         <button
-          onClick={remove}
+          onClick={() => setConfirmOpen(true)}
           disabled={isPending}
           title="Exclure du concours"
           className="text-[var(--foreground-subtle)] hover:text-[var(--error)] transition-colors disabled:opacity-50"
@@ -125,5 +136,6 @@ function ParticipantRow({
         </button>
       </div>
     </div>
+    </>
   )
 }
