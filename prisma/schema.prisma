@@ -14,12 +14,13 @@ datasource db {
 enum Role {
   USER
   ADMIN
+  GHOST
 }
 
 model User {
   id            String    @id @default(cuid())
   name          String?
-  email         String    @unique
+  email         String?   @unique
   emailVerified DateTime?
   image         String?
   password      String?
@@ -37,6 +38,21 @@ model User {
   leaderboardEntries   LeaderboardEntry[]
   rankingSnapshots     RankingSnapshot[]
   contestParticipants  ContestParticipant[]
+  subProfile           SubProfile?            @relation("GhostUser")
+  ownedSubProfiles     SubProfile[]           @relation("OwnerUser")
+}
+
+model SubProfile {
+  id          String   @id @default(cuid())
+  ownerId     String
+  ghostUserId String   @unique
+  firstName   String
+  lastName    String
+  avatarSeed  String   @default(cuid())
+  createdAt   DateTime @default(now())
+
+  owner     User @relation("OwnerUser", fields: [ownerId], references: [id], onDelete: Cascade)
+  ghostUser User @relation("GhostUser", fields: [ghostUserId], references: [id], onDelete: Cascade)
 }
 
 model Account {

@@ -13,7 +13,11 @@ interface Participant {
     id: string
     firstName: string
     lastName: string
-    email: string
+    email: string | null
+    role: string
+    subProfile: {
+      owner: { firstName: string; lastName: string }
+    } | null
   }
 }
 
@@ -64,11 +68,20 @@ function ParticipantRow({ participant }: { participant: Participant }) {
         }
       </button>
       <div className="flex-1 min-w-0">
-        <div className="font-semibold text-sm text-[var(--foreground)]">
-          {participant.user.firstName} {participant.user.lastName}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="font-semibold text-sm text-[var(--foreground)]">
+            {participant.user.firstName} {participant.user.lastName}
+          </span>
+          {participant.user.role === "GHOST" && (
+            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--purple-dim)] text-[var(--purple)] shrink-0">
+              sous-profil
+            </span>
+          )}
         </div>
         <div className="text-xs text-[var(--foreground-muted)] truncate">
-          {participant.user.email}
+          {participant.user.role === "GHOST" && participant.user.subProfile
+            ? `Profil de ${participant.user.subProfile.owner.firstName} ${participant.user.subProfile.owner.lastName}`
+            : (participant.user.email ?? "")}
         </div>
       </div>
       <div className="shrink-0">

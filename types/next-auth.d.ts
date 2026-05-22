@@ -9,6 +9,8 @@ declare module "next-auth" {
       firstName: string
       lastName: string
       avatarSeed: string
+      activeSubProfileId: string | null
+      ownerId: string
     } & DefaultSession["user"]
   }
 
@@ -27,5 +29,7 @@ declare module "next-auth/jwt" {
     firstName?: string
     lastName?: string
     avatarSeed?: string
+    activeSubProfileId?: string | null
+    activeGhostUserId?: string | null
   }
 }

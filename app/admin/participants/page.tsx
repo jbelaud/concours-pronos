@@ -19,7 +19,22 @@ export default async function ParticipantsPage() {
   const participants = activeContestId
     ? await db.contestParticipant.findMany({
         where: { contestId: activeContestId },
-        include: { user: { select: { id: true, firstName: true, lastName: true, email: true } } },
+        include: {
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+              role: true,
+              subProfile: {
+                select: {
+                  owner: { select: { firstName: true, lastName: true } },
+                },
+              },
+            },
+          },
+        },
         orderBy: { joinedAt: "asc" },
       })
     : []

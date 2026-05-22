@@ -79,6 +79,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.firstName = (user as { firstName?: string }).firstName ?? ""
         token.lastName = (user as { lastName?: string }).lastName ?? ""
         token.avatarSeed = (user as { avatarSeed?: string }).avatarSeed ?? ""
+        token.activeSubProfileId = null
       }
 
       // Refresh from DB on each new session (keep role up to date)
@@ -100,16 +101,37 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
       }
 
+      // When a sub-profile is active, override display fields with ghost user data
+      if (token.activeSubProfileId) {
+        const sub = await db.subProfile.findUnique({
+          where: { id: token.activeSubProfileId as string },
+          select: { firstName: true, lastName: true, avatarSeed: true, ghostUserId: true, ownerId: true },
+        })
+        if (sub && sub.ownerId === token.id) {
+          token.firstName = sub.firstName
+          token.lastName = sub.lastName
+          token.avatarSeed = sub.avatarSeed
+          token.activeGhostUserId = sub.ghostUserId
+        } else {
+          token.activeSubProfileId = null
+          token.activeGhostUserId = null
+        }
+      } else {
+        token.activeGhostUserId = null
+      }
+
       return token
     },
 
     async session({ session, token }) {
       if (session.user && token) {
-        session.user.id = token.id as string
+        session.user.id = (token.activeGhostUserId as string | null) ?? (token.id as string)
+        session.user.ownerId = token.id as string
         session.user.role = token.role as Role
         session.user.firstName = token.firstName as string
         session.user.lastName = token.lastName as string
         session.user.avatarSeed = token.avatarSeed as string
+        session.user.activeSubProfileId = (token.activeSubProfileId as string | null) ?? null
       }
       return session
     },

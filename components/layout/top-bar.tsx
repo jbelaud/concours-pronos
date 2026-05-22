@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { auth } from "@/lib/auth"
-import { FootballAvatar } from "@/components/shared/football-avatar"
+import { db } from "@/lib/db"
+import { ProfileSwitcher } from "@/components/layout/profile-switcher"
 import { LayoutGrid } from "lucide-react"
 
 interface TopBarProps {
@@ -10,6 +11,15 @@ interface TopBarProps {
 
 export async function TopBar({ title = "ConcoursPronos" }: TopBarProps) {
   const session = await auth()
+
+  let subProfiles: { id: string; firstName: string; lastName: string; avatarSeed: string }[] = []
+  if (session?.user?.ownerId) {
+    subProfiles = await db.subProfile.findMany({
+      where: { ownerId: session.user.ownerId },
+      select: { id: true, firstName: true, lastName: true, avatarSeed: true },
+      orderBy: { createdAt: "asc" },
+    })
+  }
 
   return (
     <header
@@ -33,13 +43,19 @@ export async function TopBar({ title = "ConcoursPronos" }: TopBarProps) {
               <LayoutGrid size={13} />
               Mes concours
             </Link>
-            <Link href="/compte">
-              <FootballAvatar
-                seed={session.user.avatarSeed}
-                size={34}
-                className="ring-2 ring-[var(--border-strong)] hover:ring-[var(--accent)] transition-all"
-              />
-            </Link>
+            <ProfileSwitcher
+              ownerFirstName={session.user.firstName}
+              ownerLastName={session.user.lastName}
+              ownerAvatarSeed={
+                session.user.activeSubProfileId
+                  ? (subProfiles.find((s) => s.id === session.user.activeSubProfileId)?.avatarSeed ?? session.user.avatarSeed)
+                  : session.user.avatarSeed
+              }
+              subProfiles={subProfiles}
+              activeSubProfileId={session.user.activeSubProfileId}
+              activeFirstName={session.user.firstName}
+              activeAvatarSeed={session.user.avatarSeed}
+            />
           </div>
         )}
       </div>

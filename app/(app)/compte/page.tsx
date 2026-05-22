@@ -2,6 +2,7 @@ import { auth, signOut } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { db } from "@/lib/db"
 import { FootballAvatar } from "@/components/shared/football-avatar"
+import { SubProfilesSection } from "@/components/compte/sub-profiles-section"
 import { LogOut, Shield, Trophy, History } from "lucide-react"
 import Link from "next/link"
 import type { Metadata } from "next"
@@ -30,15 +31,22 @@ export default async function ComptePage({
   const session = await auth()
   if (!session?.user) redirect("/login")
   const userId = session.user.id
+  const ownerId = session.user.ownerId
 
   const { contestId: requestedId } = await searchParams
 
   const user = await db.user.findUnique({
-    where: { id: userId },
+    where: { id: ownerId },
     select: { firstName: true, lastName: true, email: true, avatarSeed: true, role: true, createdAt: true },
   })
 
   if (!user) redirect("/login")
+
+  const subProfiles = await db.subProfile.findMany({
+    where: { ownerId },
+    select: { id: true, firstName: true, lastName: true, avatarSeed: true },
+    orderBy: { createdAt: "asc" },
+  })
 
   // Concours actif affiché (pour les stats en haut)
   const myParticipation = await db.contestParticipant.findFirst({
@@ -122,6 +130,15 @@ export default async function ComptePage({
           </p>
         </div>
       </div>
+
+      {/* Sous-profils */}
+      <SubProfilesSection
+        ownerFirstName={user.firstName}
+        ownerLastName={user.lastName}
+        ownerAvatarSeed={user.avatarSeed}
+        subProfiles={subProfiles}
+        activeSubProfileId={session.user.activeSubProfileId}
+      />
 
       {/* Stats concours actif */}
       {activeContest && (

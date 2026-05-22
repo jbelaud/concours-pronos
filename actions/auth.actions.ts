@@ -106,7 +106,7 @@ export async function registerAndJoinContest(formData: {
     update: {},
   })
 
-  return { success: true, email: user.email }
+  return { success: true, email: user.email ?? "" }
 }
 
 export async function registerFromInvitation(formData: {
@@ -188,5 +188,5 @@ export async function registerFromInvitation(formData: {
     })
   }
 
-  return { success: true, email: user.email }
+  return { success: true, email: user.email ?? "" }
 }
