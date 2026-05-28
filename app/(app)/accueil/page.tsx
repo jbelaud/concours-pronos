@@ -3,7 +3,7 @@ import { db } from "@/lib/db"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import { formatKickoff, PHASE_LABELS } from "@/lib/utils"
-import { ChevronRight, Trophy, Target, Clock, Banknote, Plus } from "lucide-react"
+import { ChevronRight, Trophy, Target, Clock, Plus } from "lucide-react"
 import { ShareContestCard } from "@/components/shared/share-contest-card"
 import { CopyIbanButton } from "@/components/shared/copy-iban-button"
 import { CountdownTimer } from "@/components/shared/countdown-timer"
@@ -232,6 +232,15 @@ export default async function AccueilPage({ searchParams }: { searchParams: Prom
             />
           </div>
 
+          {/* Bloc paiement IBAN — entre KPIs et countdown */}
+          {!activeContest.isFree && activeContest.buyIn > 0 && !participation?.hasPaid && activeContest.iban && (
+            <IbanCard
+              iban={activeContest.iban}
+              buyIn={activeContest.buyIn}
+              instructions={activeContest.paymentInstructions}
+            />
+          )}
+
           {/* Compte à rebours avant le début du tournoi */}
           {activeContest.template?.startDate && new Date(activeContest.template.startDate) > new Date() && (
             <CountdownTimer targetDate={activeContest.template.startDate.toISOString()} />
@@ -258,33 +267,6 @@ export default async function AccueilPage({ searchParams }: { searchParams: Prom
             </Link>
           )}
 
-          {/* Bloc paiement IBAN si buy-in > 0 et pas encore payé */}
-          {!activeContest.isFree && activeContest.buyIn > 0 && !participation?.hasPaid && activeContest.iban && (
-            <div className="flex flex-col gap-2 p-4 rounded-xl bg-[var(--warning-dim)] border border-[var(--warning)]/30">
-              <div className="flex items-center gap-2">
-                <Banknote size={18} className="text-[var(--warning)] shrink-0" />
-                <div>
-                  <div className="font-semibold text-sm text-[var(--foreground)]">
-                    Paiement en attente ({activeContest.buyIn}€)
-                  </div>
-                  <div className="text-xs text-[var(--foreground-muted)]">
-                    Effectue ton virement pour valider ta participation
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center justify-between gap-3 bg-[var(--surface-elevated)] px-3 py-2.5 rounded-xl">
-                <span className="text-xs font-mono text-[var(--foreground)] break-all leading-snug flex-1">
-                  {activeContest.iban}
-                </span>
-                <CopyIbanButton iban={activeContest.iban} />
-              </div>
-              {activeContest.paymentInstructions && (
-                <div className="text-xs text-[var(--foreground-muted)] whitespace-pre-line">
-                  {activeContest.paymentInstructions}
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Partage du concours */}
           {activeContest.inviteToken && activeContest.allowPublicJoin && (
@@ -531,6 +513,45 @@ function StatCard({
   )
   if (href) return <Link href={href}>{inner}</Link>
   return inner
+}
+
+function IbanCard({ iban, buyIn, instructions }: { iban: string; buyIn: number; instructions?: string | null }) {
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-[var(--warning)]/40 bg-gradient-to-br from-[var(--warning)]/15 via-[var(--warning)]/5 to-transparent p-4 flex flex-col gap-3">
+      {/* Cercle décoratif */}
+      <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-[var(--warning)]/10 blur-xl pointer-events-none" />
+      <div className="absolute -bottom-4 -left-4 w-16 h-16 rounded-full bg-[var(--warning)]/8 blur-lg pointer-events-none" />
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">💳</span>
+          <div>
+            <div className="text-sm font-bold text-[var(--foreground)]">Paiement en attente</div>
+            <div className="text-[10px] text-[var(--foreground-muted)]">Effectue ton virement pour valider ta participation</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[var(--warning)] text-white">
+          <span className="text-sm font-black">{buyIn}€</span>
+        </div>
+      </div>
+
+      {/* IBAN */}
+      <div className="flex items-center gap-2 bg-[var(--surface)] rounded-xl px-3 py-2.5 border border-[var(--warning)]/20">
+        <span className="text-xs font-mono text-[var(--foreground)] break-all leading-snug flex-1 select-all">
+          {iban}
+        </span>
+        <CopyIbanButton iban={iban} />
+      </div>
+
+      {/* Instructions */}
+      {instructions && (
+        <p className="text-[11px] text-[var(--foreground-muted)] whitespace-pre-line leading-relaxed">
+          {instructions}
+        </p>
+      )}
+    </div>
+  )
 }
 
 function SectionHeader({ title, icon, href }: { title: string; icon: React.ReactNode; href?: string }) {
