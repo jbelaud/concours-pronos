@@ -37,6 +37,7 @@ export async function createContest(data: {
     pointsGroupFirst: number
     pointsGroupSecond: number
     knockoutScoringRule: "REGULAR_TIME" | "FULL_TIME"
+    tieBreakerOrder: string[]
   }
   prizepool: {
     totalAmount: number
@@ -91,6 +92,7 @@ export async function createContest(data: {
       pointsGroupFirst: data.settings.pointsGroupFirst,
       pointsGroupSecond: data.settings.pointsGroupSecond,
       knockoutScoringRule: data.settings.knockoutScoringRule,
+      tieBreakerOrder: data.settings.tieBreakerOrder,
     },
   })
 
@@ -325,6 +327,7 @@ export async function updateContest(data: {
     pointsGroupFirst: number
     pointsGroupSecond: number
     knockoutScoringRule: "REGULAR_TIME" | "FULL_TIME"
+    tieBreakerOrder: string[]
   }
   prizepool: {
     totalAmount: number
@@ -359,6 +362,7 @@ export async function updateContest(data: {
       pointsGroupFirst: data.settings.pointsGroupFirst,
       pointsGroupSecond: data.settings.pointsGroupSecond,
       knockoutScoringRule: data.settings.knockoutScoringRule,
+      tieBreakerOrder: data.settings.tieBreakerOrder,
     },
     update: {
       pointsCorrectResult: data.settings.pointsCorrectResult,
@@ -371,6 +375,7 @@ export async function updateContest(data: {
       pointsGroupFirst: data.settings.pointsGroupFirst,
       pointsGroupSecond: data.settings.pointsGroupSecond,
       knockoutScoringRule: data.settings.knockoutScoringRule,
+      tieBreakerOrder: data.settings.tieBreakerOrder,
     },
   })
 

@@ -3,8 +3,10 @@ import { db } from "@/lib/db"
 import { redirect } from "next/navigation"
 import { LeaderboardList } from "@/components/leaderboard/leaderboard-list"
 import { RankingChart } from "@/components/leaderboard/ranking-chart"
+import { ClassementTabs } from "@/components/leaderboard/classement-tabs"
 import type { Metadata } from "next"
 import type { LeaderboardRow, RankingEvolutionPoint } from "@/types"
+import type { TieBreakerKey } from "@/lib/ranking"
 
 export const metadata: Metadata = { title: "Classement" }
 
@@ -27,7 +29,10 @@ export default async function ClassementPage({
     },
     include: {
       contest: {
-        include: { prizepool: { include: { payouts: true } } },
+        include: {
+          prizepool: { include: { payouts: true } },
+          settings: true,
+        },
       },
     },
     orderBy: { joinedAt: "desc" },
@@ -103,14 +108,12 @@ export default async function ClassementPage({
     include: { user: { select: { id: true, firstName: true } } },
   })
 
-  // Group by userId
   const snapshotsByUser: Record<string, { matchday: number; rank: number; points: number }[]> = {}
   for (const s of allSnapshots) {
     if (!snapshotsByUser[s.userId]) snapshotsByUser[s.userId] = []
     snapshotsByUser[s.userId].push({ matchday: s.matchday, rank: s.rank, points: s.totalPoints })
   }
 
-  // Build chart series: me first, then ITM players (excluding me)
   const chartSeries = chartUserIds
     .filter((id) => snapshotsByUser[id]?.length)
     .map((id) => {
@@ -129,6 +132,23 @@ export default async function ClassementPage({
     rank: s.rank,
     points: s.points,
   }))
+
+  // Règles du concours
+  const s = contest.settings
+  const contestSettings = {
+    pointsCorrectResult: s?.pointsCorrectResult ?? 3,
+    pointsExactScore: s?.pointsExactScore ?? 1,
+    pointsWinner: s?.pointsWinner ?? 10,
+    pointsTopScorer: s?.pointsTopScorer ?? 5,
+    pointsBestAttack: s?.pointsBestAttack ?? 3,
+    pointsBestDefense: s?.pointsBestDefense ?? 3,
+    pointsGroupFirst: s?.pointsGroupFirst ?? 2,
+    pointsGroupSecond: s?.pointsGroupSecond ?? 1,
+    knockoutScoringRule: (s?.knockoutScoringRule ?? "REGULAR_TIME") as "REGULAR_TIME" | "FULL_TIME",
+    tieBreakerOrder: (Array.isArray(s?.tieBreakerOrder)
+      ? s.tieBreakerOrder
+      : ["exactScores", "correctResults", "finalWinner"]) as TieBreakerKey[],
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -179,17 +199,14 @@ export default async function ClassementPage({
         </div>
       )}
 
-      <LeaderboardList
-        entries={rows}
+      {/* Onglets Classement / Règles */}
+      <ClassementTabs
+        rows={rows}
         currentUserId={userId}
         itmCount={itmCount}
+        settings={contestSettings}
+        hasEntries={entries.length > 0}
       />
-
-      {entries.length === 0 && (
-        <div className="text-center py-12 text-[var(--foreground-muted)] text-sm">
-          Aucun participant n&apos;a encore de points.
-        </div>
-      )}
     </div>
   )
 }

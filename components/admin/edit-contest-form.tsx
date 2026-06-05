@@ -6,6 +6,8 @@ import { updateContest } from "@/actions/admin.actions"
 import { Info } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { TieBreakerEditor } from "@/components/admin/tiebreaker-editor"
+import type { TieBreakerKey } from "@/lib/ranking"
 
 function computeDefaultPayouts(totalAmount: number, itmCount: number): Array<{ position: number; amount: number }> {
   if (totalAmount <= 0 || itmCount <= 0) return []
@@ -44,6 +46,7 @@ interface Props {
     pointsGroupFirst: number
     pointsGroupSecond: number
     knockoutScoringRule: "REGULAR_TIME" | "FULL_TIME"
+    tieBreakerOrder: TieBreakerKey[]
   }
   initialPrizepool: {
     totalAmount: number
@@ -81,6 +84,7 @@ export function EditContestForm({
   const [pointsGroupFirst, setPointsGroupFirst] = useState(initialSettings.pointsGroupFirst)
   const [pointsGroupSecond, setPointsGroupSecond] = useState(initialSettings.pointsGroupSecond)
   const [knockoutScoringRule, setKnockoutScoringRule] = useState<"REGULAR_TIME" | "FULL_TIME">(initialSettings.knockoutScoringRule)
+  const [tieBreakerOrder, setTieBreakerOrder] = useState<TieBreakerKey[]>(initialSettings.tieBreakerOrder)
 
   const [totalAmount, setTotalAmount] = useState(initialPrizepool.totalAmount)
   const [itmCount, setItmCount] = useState(initialPrizepool.itmCount || 4)
@@ -129,6 +133,7 @@ export function EditContestForm({
           pointsGroupFirst,
           pointsGroupSecond,
           knockoutScoringRule,
+          tieBreakerOrder,
         },
         prizepool: isFree ? { totalAmount: 0, itmCount: 0, payouts: [] } : { totalAmount, itmCount, payouts },
       })
@@ -319,6 +324,21 @@ export function EditContestForm({
           <Info size={12} className="text-[var(--foreground-muted)] mt-0.5 shrink-0" />
           <p className="text-[10px] text-[var(--foreground-muted)]">
             Cette règle sera affichée aux participants sur la page des pronostics. Pour les matchs de groupes, c&apos;est toujours le score final à 90&apos; qui compte.
+          </p>
+        </div>
+      </section>
+
+      {/* Règles de départage */}
+      <section className="surface-card p-4 flex flex-col gap-3">
+        <h2 className="text-sm font-bold text-[var(--foreground)]">Règles de départage</h2>
+        <p className="text-xs text-[var(--foreground-muted)]">
+          En cas d&apos;égalité de points, les joueurs sont départagés dans cet ordre. Faites glisser pour réordonner.
+        </p>
+        <TieBreakerEditor value={tieBreakerOrder} onChange={setTieBreakerOrder} />
+        <div className="flex items-start gap-2 p-2.5 rounded-lg bg-[var(--surface-elevated)] border border-[var(--border)]">
+          <Info size={12} className="text-[var(--foreground-muted)] mt-0.5 shrink-0" />
+          <p className="text-[10px] text-[var(--foreground-muted)]">
+            Cet ordre sera affiché publiquement aux participants sur la page Classement pour une totale transparence.
           </p>
         </div>
       </section>

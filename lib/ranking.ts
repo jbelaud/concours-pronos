@@ -1,9 +1,46 @@
 import { db } from "@/lib/db"
 import { calculateMatchPointsWithRule } from "@/lib/scoring"
 
+export type TieBreakerKey = "exactScores" | "correctResults" | "finalWinner"
+
+export const DEFAULT_TIEBREAKER_ORDER: TieBreakerKey[] = [
+  "exactScores",
+  "correctResults",
+  "finalWinner",
+]
+
+export interface RankedRow {
+  userId: string
+  totalPoints: number
+  exactScores: number
+  correctResults: number
+  bonusPoints: number
+  finalWinner: number
+  rank: number
+}
+
 /**
- * Recalculates all predictions for a finished match and updates the leaderboard.
- * Called after admin saves a result.
+ * Tri en cascade d'un tableau de joueurs selon un ordre de départage dynamique.
+ * Toujours précédé du tri primaire sur totalPoints (DESC).
+ */
+export function sortLeaderboard(
+  players: RankedRow[],
+  tieBreakerOrder: TieBreakerKey[]
+): RankedRow[] {
+  const order = tieBreakerOrder.length > 0 ? tieBreakerOrder : DEFAULT_TIEBREAKER_ORDER
+  return [...players].sort((a, b) => {
+    if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints
+    for (const key of order) {
+      const diff = (b[key] as number) - (a[key] as number)
+      if (diff !== 0) return diff
+    }
+    return 0
+  })
+}
+
+/**
+ * Recalcule toutes les prédictions d'un match terminé et reconstruit le classement.
+ * Appelé automatiquement après qu'un admin enregistre un résultat.
  */
 export async function recalculateMatchPredictions(
   matchId: string
@@ -46,17 +83,9 @@ export async function recalculateMatchPredictions(
   await rebuildLeaderboard(match.contestId)
 }
 
-interface RankedRow {
-  userId: string
-  totalPoints: number
-  exactScores: number
-  correctResults: number
-  bonusPoints: number
-  rank: number
-}
-
 /**
- * Full leaderboard rebuild for a contest.
+ * Reconstruction complète du classement pour un concours.
+ * L'ordre des départages est lu depuis ContestSettings.tieBreakerOrder.
  */
 export async function rebuildLeaderboard(contestId: string): Promise<void> {
   const participants = await db.contestParticipant.findMany({
@@ -72,50 +101,50 @@ export async function rebuildLeaderboard(contestId: string): Promise<void> {
       })
       const bonusPred = await db.tournamentPrediction.findUnique({
         where: { userId_contestId: { userId, contestId } },
-        select: { points: true },
+        select: { points: true, winnerId: true },
       })
+
+      // finalWinner vaut 1 si le joueur a trouvé le vainqueur final (bonusPred.winnerId résolu)
+      const finalWinnerFound = bonusPred?.winnerId !== null && bonusPred?.points !== undefined
+        ? await _hasFinalWinner(userId, contestId)
+        : 0
+
       return {
         userId,
-        totalPoints: preds.reduce((s, p) => s + p.points, 0) + (bonusPred?.points ?? 0),
+        totalPoints:
+          preds.reduce((s, p) => s + p.points, 0) + (bonusPred?.points ?? 0),
         exactScores: preds.filter((p) => p.status === "EXACT_SCORE").length,
         correctResults: preds.filter(
           (p) => p.status === "EXACT_SCORE" || p.status === "CORRECT_RESULT"
         ).length,
         bonusPoints: bonusPred?.points ?? 0,
+        finalWinner: finalWinnerFound,
         rank: 0,
-      }
+      } satisfies RankedRow
     })
   )
 
   const settings = await db.contestSettings.findUnique({ where: { contestId } })
-  const tb1 = (settings?.tieBreaker1 ?? "exactScores") as keyof RankedRow
-  const tb2 = (settings?.tieBreaker2 ?? "correctResults") as keyof RankedRow
+  const rawOrder = settings?.tieBreakerOrder
+  const tieBreakerOrder: TieBreakerKey[] = Array.isArray(rawOrder)
+    ? (rawOrder as TieBreakerKey[])
+    : DEFAULT_TIEBREAKER_ORDER
 
-  rows.sort((a, b) => {
-    if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints
-    const v1a = (a[tb1] as number) ?? 0
-    const v1b = (b[tb1] as number) ?? 0
-    if (v1b !== v1a) return v1b - v1a
-    const v2a = (a[tb2] as number) ?? 0
-    const v2b = (b[tb2] as number) ?? 0
-    return v2b - v2a
-  })
+  const sorted = sortLeaderboard(rows, tieBreakerOrder)
 
+  // Attribution des rangs (ex-æquo = même rang, tous critères égaux)
   let currentRank = 1
-  for (let idx = 0; idx < rows.length; idx++) {
-    if (
-      idx > 0 &&
-      rows[idx].totalPoints === rows[idx - 1].totalPoints
-    ) {
-      rows[idx].rank = currentRank
+  for (let idx = 0; idx < sorted.length; idx++) {
+    if (idx > 0 && _isTied(sorted[idx], sorted[idx - 1], tieBreakerOrder)) {
+      sorted[idx].rank = currentRank
     } else {
       currentRank = idx + 1
-      rows[idx].rank = currentRank
+      sorted[idx].rank = currentRank
     }
   }
 
   await Promise.all(
-    rows.map(async (row) => {
+    sorted.map(async (row) => {
       const existing = await db.leaderboardEntry.findUnique({
         where: { contestId_userId: { contestId, userId: row.userId } },
         select: { rank: true },
@@ -146,7 +175,7 @@ export async function rebuildLeaderboard(contestId: string): Promise<void> {
 }
 
 /**
- * Takes a ranking snapshot for all contest participants (called after each matchday).
+ * Prend un snapshot du classement courant pour tous les participants (après chaque journée).
  */
 export async function takeRankingSnapshot(
   contestId: string,
@@ -166,4 +195,40 @@ export async function takeRankingSnapshot(
     })),
     skipDuplicates: true,
   })
+}
+
+// ---------------------------------------------------------------------------
+// Helpers privés
+// ---------------------------------------------------------------------------
+
+/** Retourne 1 si le joueur a prédit le bon vainqueur final du tournoi. */
+async function _hasFinalWinner(userId: string, contestId: string): Promise<number> {
+  const bonus = await db.tournamentPrediction.findUnique({
+    where: { userId_contestId: { userId, contestId } },
+    select: { winnerId: true },
+  })
+  if (!bonus?.winnerId) return 0
+
+  // Le vainqueur "résolu" est l'équipe ayant gagné le match FINAL
+  const finalMatch = await db.match.findFirst({
+    where: { contestId, phase: "FINAL", status: "FINISHED" },
+    select: { homeTeamId: true, awayTeamId: true, homeScore: true, awayScore: true },
+  })
+  if (!finalMatch || finalMatch.homeScore === null || finalMatch.awayScore === null) return 0
+
+  const actualWinnerId =
+    finalMatch.homeScore > finalMatch.awayScore
+      ? finalMatch.homeTeamId
+      : finalMatch.awayTeamId
+
+  return bonus.winnerId === actualWinnerId ? 1 : 0
+}
+
+/** Vérifie si deux joueurs sont strictement ex-æquo sur tous les critères de départage. */
+function _isTied(a: RankedRow, b: RankedRow, order: TieBreakerKey[]): boolean {
+  if (a.totalPoints !== b.totalPoints) return false
+  for (const key of order) {
+    if ((a[key] as number) !== (b[key] as number)) return false
+  }
+  return true
 }

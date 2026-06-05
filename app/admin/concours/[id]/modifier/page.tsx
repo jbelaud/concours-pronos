@@ -43,6 +43,9 @@ export default async function ModifierConcoursPage({ params }: Props) {
           pointsGroupFirst: contest.settings?.pointsGroupFirst ?? 2,
           pointsGroupSecond: contest.settings?.pointsGroupSecond ?? 1,
           knockoutScoringRule: (contest.settings?.knockoutScoringRule ?? "REGULAR_TIME") as "REGULAR_TIME" | "FULL_TIME",
+          tieBreakerOrder: (Array.isArray(contest.settings?.tieBreakerOrder)
+            ? contest.settings.tieBreakerOrder
+            : ["exactScores", "correctResults", "finalWinner"]) as import("@/lib/ranking").TieBreakerKey[],
         }}
         initialPrizepool={{
           totalAmount: contest.prizepool?.totalAmount ?? 0,

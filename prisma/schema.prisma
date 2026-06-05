@@ -213,8 +213,7 @@ model ContestSettings {
   pointsBestDefense    Int                  @default(3)
   pointsGroupFirst     Int                  @default(2)
   pointsGroupSecond    Int                  @default(1)
-  tieBreaker1          String               @default("exactScores")
-  tieBreaker2          String               @default("correctResults")
+  tieBreakerOrder      Json                 @default("[\"exactScores\",\"correctResults\",\"finalWinner\"]")
   knockoutScoringRule  KnockoutScoringRule  @default(REGULAR_TIME)
 
   contest Contest @relation(fields: [contestId], references: [id], onDelete: Cascade)

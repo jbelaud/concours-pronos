@@ -6,6 +6,8 @@ import { createContest } from "@/actions/admin.actions"
 import { Info } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { TieBreakerEditor } from "@/components/admin/tiebreaker-editor"
+import type { TieBreakerKey } from "@/lib/ranking"
 
 const TEMPLATES = [
   { slug: "world-cup-2026", name: "Coupe du Monde FIFA 2026" },
@@ -55,6 +57,7 @@ export default function NouveauConcoursPage() {
   const [pointsGroupFirst, setPointsGroupFirst] = useState(2)
   const [pointsGroupSecond, setPointsGroupSecond] = useState(1)
   const [knockoutScoringRule, setKnockoutScoringRule] = useState<"REGULAR_TIME" | "FULL_TIME">("REGULAR_TIME")
+  const [tieBreakerOrder, setTieBreakerOrder] = useState<TieBreakerKey[]>(["exactScores", "correctResults", "finalWinner"])
 
   // Prizepool
   const [totalAmount, setTotalAmount] = useState(0)
@@ -112,6 +115,7 @@ export default function NouveauConcoursPage() {
           pointsGroupFirst,
           pointsGroupSecond,
           knockoutScoringRule,
+          tieBreakerOrder,
         },
         prizepool: isFree ? { totalAmount: 0, itmCount: 0, payouts: [] } : { totalAmount, itmCount, payouts },
       })
@@ -324,6 +328,21 @@ export default function NouveauConcoursPage() {
             <Info size={12} className="text-[var(--foreground-muted)] mt-0.5 shrink-0" />
             <p className="text-[10px] text-[var(--foreground-muted)]">
               Cette règle sera affichée aux participants sur la page des pronostics. Pour les matchs de groupes, c&apos;est toujours le score final à 90&apos; qui compte.
+            </p>
+          </div>
+        </section>
+
+        {/* Règles de départage */}
+        <section className="surface-card p-4 flex flex-col gap-3">
+          <h2 className="text-sm font-bold text-[var(--foreground)]">Règles de départage</h2>
+          <p className="text-xs text-[var(--foreground-muted)]">
+            En cas d&apos;égalité de points, les joueurs sont départagés dans cet ordre. Faites glisser pour réordonner.
+          </p>
+          <TieBreakerEditor value={tieBreakerOrder} onChange={setTieBreakerOrder} />
+          <div className="flex items-start gap-2 p-2.5 rounded-lg bg-[var(--surface-elevated)] border border-[var(--border)]">
+            <Info size={12} className="text-[var(--foreground-muted)] mt-0.5 shrink-0" />
+            <p className="text-[10px] text-[var(--foreground-muted)]">
+              Cet ordre sera affiché publiquement aux participants sur la page Classement pour une totale transparence.
             </p>
           </div>
         </section>
