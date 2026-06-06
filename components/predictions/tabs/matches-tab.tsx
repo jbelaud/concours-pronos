@@ -5,6 +5,7 @@ import { createPortal } from "react-dom"
 import { motion, AnimatePresence } from "framer-motion"
 import { MatchCard } from "../match-card"
 import { CommunityMatchStats } from "../community-match-stats"
+import { QuickPickButton } from "../quick-pick-button"
 import { PHASE_ORDER } from "@/lib/utils"
 import { ChevronDown, ChevronUp, Info, CalendarDays } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -107,6 +108,11 @@ function DayDropdown({
 }
 
 export function MatchesTab({ matches, contestId, communityPredictions, knockoutScoringRule }: Props) {
+  const pendingGroupCount = useMemo(
+    () => matches.filter((m) => m.phase === "GROUP" && m.homeTeamId && !m.isLocked && !m.prediction).length,
+    [matches]
+  )
+
   const communityByMatch = useMemo(() => {
     const map: Record<string, CommunityPrediction[]> = {}
     for (const p of communityPredictions) {
@@ -195,6 +201,13 @@ export function MatchesTab({ matches, contestId, communityPredictions, knockoutS
           )}
         </button>
       </div>
+
+      {/* Quick Pick — visible uniquement dans l'onglet poules avec matchs restants */}
+      {mainTab === "groups" && pendingGroupCount > 0 && (
+        <div className="mb-3">
+          <QuickPickButton contestId={contestId} pendingGroupCount={pendingGroupCount} />
+        </div>
+      )}
 
       {/* === FILTRE POULES === */}
       {mainTab === "groups" && hasGroupMatches && (
