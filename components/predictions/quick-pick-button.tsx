@@ -62,13 +62,14 @@ export function QuickPickButton({ contestId, pendingGroupCount }: Props) {
               onClick={() => !isPending && setShowModal(false)}
             />
 
-            {/* Modal */}
+            {/* Modal — centré verticalement, marges pour la bottom nav */}
+            <div className="fixed inset-0 z-50 flex items-center justify-center px-4 pb-[80px] pt-4">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              initial={{ opacity: 0, scale: 0.95, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              exit={{ opacity: 0, scale: 0.95, y: 12 }}
               transition={{ duration: 0.2, type: "spring", damping: 20, stiffness: 300 }}
-              className="fixed inset-x-4 bottom-6 z-50 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-full sm:max-w-sm"
+              className="w-full max-w-sm"
             >
               <div className="bg-[var(--surface-elevated)] border border-[var(--border)] rounded-2xl p-5 shadow-2xl">
                 {/* Header */}
@@ -125,6 +126,7 @@ export function QuickPickButton({ contestId, pendingGroupCount }: Props) {
                 </div>
               </div>
             </motion.div>
+            </div>
           </>
         )}
       </AnimatePresence>
