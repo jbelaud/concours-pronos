@@ -214,7 +214,7 @@ export default async function RejoindreContestPage({ params }: Props) {
         )}
 
         {/* CTA join */}
-        {!contest.allowPublicJoin ? (
+        {!contest.allowPublicJoin && !alreadyJoined ? (
           <div className="surface-card p-4 text-center flex flex-col items-center gap-2">
             <span className="text-2xl">🔒</span>
             <p className="text-sm font-semibold text-[var(--foreground)]">Inscriptions fermées</p>
