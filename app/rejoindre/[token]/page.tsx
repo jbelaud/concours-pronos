@@ -5,7 +5,8 @@ import { JoinContestClient } from "./join-contest-client"
 import { CopyIbanButton } from "@/components/shared/copy-iban-button"
 import { CountdownTimer } from "@/components/shared/countdown-timer"
 import type { Metadata } from "next"
-import { Users, Trophy, Banknote, Star } from "lucide-react"
+import { Users, Trophy, Banknote, Star, LogIn } from "lucide-react"
+import Link from "next/link"
 
 export const metadata: Metadata = { title: "Rejoindre un concours — ConcoursPronos" }
 
@@ -215,12 +216,19 @@ export default async function RejoindreContestPage({ params }: Props) {
 
         {/* CTA join */}
         {!contest.allowPublicJoin && !alreadyJoined ? (
-          <div className="surface-card p-4 text-center flex flex-col items-center gap-2">
+          <div className="surface-card p-4 text-center flex flex-col items-center gap-3">
             <span className="text-2xl">🔒</span>
-            <p className="text-sm font-semibold text-[var(--foreground)]">Inscriptions fermées</p>
+            <p className="text-sm font-semibold text-[var(--foreground)]">Inscriptions closes</p>
             <p className="text-xs text-[var(--foreground-muted)]">
-              L&apos;organisateur a temporairement désactivé les inscriptions via lien. Contacte-le directement.
+              Les nouvelles inscriptions sont désactivées. Si tu es déjà inscrit, connecte-toi pour accéder au concours.
             </p>
+            <Link
+              href="/login"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl gradient-accent text-white text-sm font-semibold w-full justify-center"
+            >
+              <LogIn size={15} />
+              Se connecter
+            </Link>
           </div>
         ) : (
           <JoinContestClient
