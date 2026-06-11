@@ -403,6 +403,11 @@ export async function updateContest(data: {
   revalidatePath("/admin")
   revalidatePath("/admin/concours")
   revalidatePath(`/admin/concours/${data.contestId}/modifier`)
+  revalidatePath("/admin/resultats")
+  revalidatePath("/admin/bonus")
+  revalidatePath("/classement")
+  revalidatePath(`/concours/${data.contestId}`)
+  revalidatePath("/concours")
   return { success: true as const }
 }
 
