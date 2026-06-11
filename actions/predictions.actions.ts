@@ -96,6 +96,23 @@ export async function upsertBonusPrediction(data: {
     return { error: "Les pronostics bonus sont verrouillés." }
   }
 
+  // Build partial update — only touch fields that were explicitly passed.
+  // When topScorerFreeText is set, clear topScorerId (and vice-versa) so the
+  // two fields never coexist and the reload always shows the right mode.
+  const scorerFields =
+    "topScorerFreeText" in data
+      ? { topScorerFreeText: data.topScorerFreeText ?? null, topScorerId: null }
+      : "topScorerId" in data
+        ? { topScorerId: data.topScorerId ?? null, topScorerFreeText: null }
+        : {}
+
+  const updatePayload = {
+    ...("winnerId" in data ? { winnerId: data.winnerId ?? null } : {}),
+    ...scorerFields,
+    ...("bestAttackId" in data ? { bestAttackId: data.bestAttackId ?? null } : {}),
+    ...("bestDefenseId" in data ? { bestDefenseId: data.bestDefenseId ?? null } : {}),
+  }
+
   await db.tournamentPrediction.upsert({
     where: {
       userId_contestId: {
@@ -112,13 +129,7 @@ export async function upsertBonusPrediction(data: {
       bestAttackId: data.bestAttackId,
       bestDefenseId: data.bestDefenseId,
     },
-    update: {
-      winnerId: data.winnerId,
-      topScorerId: data.topScorerId,
-      topScorerFreeText: data.topScorerFreeText,
-      bestAttackId: data.bestAttackId,
-      bestDefenseId: data.bestDefenseId,
-    },
+    update: updatePayload,
   })
 
   revalidatePath("/pronostics")

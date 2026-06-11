@@ -123,7 +123,8 @@ export function TournamentTab({
           value={myBonusPred?.topScorerFreeText ?? ""}
           selectedId={myBonusPred?.topScorerId ?? null}
           candidates={scorerCandidates}
-          onSave={(text, id) => saveBonus(contestId, { topScorerFreeText: text, topScorerId: id ?? undefined })}
+          onSaveCandidate={(id) => saveBonus(contestId, { topScorerId: id })}
+          onSaveFreeText={(text) => saveBonus(contestId, { topScorerFreeText: text })}
           locked={tournamentLocked}
         />
       </TournamentSection>
@@ -281,13 +282,15 @@ function ScorerInput({
   value: initialValue,
   selectedId: initialSelectedId,
   candidates,
-  onSave,
+  onSaveCandidate,
+  onSaveFreeText,
   locked,
 }: {
   value: string
   selectedId: string | null
   candidates: ScorerCandidate[]
-  onSave: (text: string, id: string | null) => void
+  onSaveCandidate: (id: string) => void
+  onSaveFreeText: (text: string) => void
   locked: boolean
 }) {
   const [search, setSearch] = useState("")
@@ -307,7 +310,7 @@ function ScorerInput({
     setSelectedId(c.id)
     setFreeText("")
     startTransition(async () => {
-      await onSave(c.name, c.id)
+      await onSaveCandidate(c.id)
     })
   }
 
@@ -315,7 +318,7 @@ function ScorerInput({
     if (!freeText.trim() || locked) return
     setSelectedId(null)
     startTransition(async () => {
-      await onSave(freeText.trim(), null)
+      await onSaveFreeText(freeText.trim())
     })
   }
 
