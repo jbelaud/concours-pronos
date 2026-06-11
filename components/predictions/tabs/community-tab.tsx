@@ -406,6 +406,15 @@ function PredictionsModal({
 
 // ── Bonus section ─────────────────────────────────────────────────────────────
 
+const BONUS_CATEGORIES = [
+  { key: "winner",     label: "Vainqueur du tournoi", icon: "🏆" },
+  { key: "scorer",     label: "Meilleur buteur",       icon: "⚽" },
+  { key: "attack",     label: "Meilleure attaque",     icon: "⚔️" },
+  { key: "defense",    label: "Meilleure défense",     icon: "🛡️" },
+] as const
+
+type BonusCategoryKey = (typeof BONUS_CATEGORIES)[number]["key"]
+
 function BonusSection({
   predictions,
   groups,
@@ -415,6 +424,8 @@ function BonusSection({
   groups: GroupWithTeams[]
   userId: string
 }) {
+  const [openModal, setOpenModal] = useState<{ key: BonusCategoryKey | string; label: string; icon: string } | null>(null)
+
   const teamsByCode = useMemo(() => {
     const map: Record<string, { name: string; flagEmoji: string | null }> = {}
     for (const g of groups) {
@@ -425,104 +436,162 @@ function BonusSection({
     return map
   }, [groups])
 
-  const total = predictions.length
+  const getLabel = (p: CommunityBonusPrediction, key: BonusCategoryKey | string): string | null => {
+    if (key === "winner") return p.winner ? `${p.winner.flagEmoji ?? ""} ${p.winner.name}` : null
+    if (key === "scorer") {
+      if (p.topScorerFreeText) return p.topScorerFreeText
+      return null
+    }
+    if (key === "attack") return p.bestAttack ? `${p.bestAttack.flagEmoji ?? ""} ${p.bestAttack.name}` : null
+    if (key === "defense") return p.bestDefense ? `${p.bestDefense.flagEmoji ?? ""} ${p.bestDefense.name}` : null
+    // group key e.g. "group-A"
+    const letter = key.replace("group-", "")
+    const gp = p.groupPredictions.find((g) => g.groupLetter === letter)
+    if (!gp) return null
+    const first = teamsByCode[gp.firstTeamCode]
+    const second = teamsByCode[gp.secondTeamCode]
+    return first && second ? `${first.flagEmoji ?? ""} ${first.name}  ·  ${second.flagEmoji ?? ""} ${second.name}` : null
+  }
+
+  const categories = [
+    ...BONUS_CATEGORIES,
+    ...groups.map((g) => ({ key: `group-${g.letter}` as string, label: `Groupe ${g.letter} — qualifiés`, icon: "📋" })),
+  ]
 
   return (
-    <div className="flex flex-col gap-3">
-      <PollBlock
-        label="Vainqueur du tournoi"
-        icon="🏆"
-        total={total}
-        myValue={predictions.find((p) => p.user.id === userId)?.winner
-          ? `${predictions.find((p) => p.user.id === userId)!.winner!.flagEmoji ?? ""} ${predictions.find((p) => p.user.id === userId)!.winner!.name}`
-          : null}
-        votes={predictions
-          .filter((p) => p.winner)
-          .reduce<Record<string, number>>((acc, p) => {
-            const key = `${p.winner!.flagEmoji ?? ""} ${p.winner!.name}`
-            acc[key] = (acc[key] ?? 0) + 1
-            return acc
-          }, {})}
-      />
-
-      <PollBlock
-        label="Meilleur buteur"
-        icon="⚽"
-        total={total}
-        myValue={predictions.find((p) => p.user.id === userId)?.topScorerFreeText ?? null}
-        votes={predictions
-          .filter((p) => p.topScorerFreeText)
-          .reduce<Record<string, number>>((acc, p) => {
-            const key = p.topScorerFreeText!
-            acc[key] = (acc[key] ?? 0) + 1
-            return acc
-          }, {})}
-      />
-
-      <PollBlock
-        label="Meilleure attaque"
-        icon="⚔️"
-        total={total}
-        myValue={predictions.find((p) => p.user.id === userId)?.bestAttack
-          ? `${predictions.find((p) => p.user.id === userId)!.bestAttack!.flagEmoji ?? ""} ${predictions.find((p) => p.user.id === userId)!.bestAttack!.name}`
-          : null}
-        votes={predictions
-          .filter((p) => p.bestAttack)
-          .reduce<Record<string, number>>((acc, p) => {
-            const key = `${p.bestAttack!.flagEmoji ?? ""} ${p.bestAttack!.name}`
-            acc[key] = (acc[key] ?? 0) + 1
-            return acc
-          }, {})}
-      />
-
-      <PollBlock
-        label="Meilleure défense"
-        icon="🛡️"
-        total={total}
-        myValue={predictions.find((p) => p.user.id === userId)?.bestDefense
-          ? `${predictions.find((p) => p.user.id === userId)!.bestDefense!.flagEmoji ?? ""} ${predictions.find((p) => p.user.id === userId)!.bestDefense!.name}`
-          : null}
-        votes={predictions
-          .filter((p) => p.bestDefense)
-          .reduce<Record<string, number>>((acc, p) => {
-            const key = `${p.bestDefense!.flagEmoji ?? ""} ${p.bestDefense!.name}`
-            acc[key] = (acc[key] ?? 0) + 1
-            return acc
-          }, {})}
-      />
-
-      {groups.map((group) => {
-        const myGP = predictions.find((p) => p.user.id === userId)?.groupPredictions.find((g) => g.groupLetter === group.letter)
-        const myValue = myGP
-          ? (() => {
-              const first = teamsByCode[myGP.firstTeamCode]
-              const second = teamsByCode[myGP.secondTeamCode]
-              return first && second ? `🥇 ${first.flagEmoji ?? ""} ${first.name} · 🥈 ${second.flagEmoji ?? ""} ${second.name}` : null
-            })()
-          : null
-
-        const votes = predictions.reduce<Record<string, number>>((acc, p) => {
-          const gp = p.groupPredictions.find((g) => g.groupLetter === group.letter)
-          if (!gp) return acc
-          const first = teamsByCode[gp.firstTeamCode]
-          const second = teamsByCode[gp.secondTeamCode]
-          if (!first || !second) return acc
-          const key = `${first.flagEmoji ?? ""} ${first.name} · ${second.flagEmoji ?? ""} ${second.name}`
-          acc[key] = (acc[key] ?? 0) + 1
-          return acc
-        }, {})
+    <div className="flex flex-col gap-2">
+      {categories.map(({ key, label, icon }) => {
+        const filled = predictions.filter((p) => getLabel(p, key) !== null)
+        if (filled.length === 0) return null
+        const myPred = predictions.find((p) => p.user.id === userId)
+        const myLabel = myPred ? getLabel(myPred, key) : null
+        const preview = filled.slice(0, 3)
 
         return (
-          <PollBlock
-            key={group.id}
-            label={`Groupe ${group.letter} — qualifiés`}
-            icon="📊"
-            total={total}
-            myValue={myValue}
-            votes={votes}
-          />
+          <div key={key} className="surface-card overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center gap-2 px-3 py-2.5 border-b border-[var(--border)]">
+              <span className="text-sm">{icon}</span>
+              <span className="flex-1 text-xs font-bold text-[var(--foreground)]">{label}</span>
+              <span className="text-[10px] text-[var(--foreground-subtle)]">{filled.length} prono{filled.length > 1 ? "s" : ""}</span>
+            </div>
+
+            {/* Mon prono */}
+            {myLabel && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-[var(--accent-dim)] border-b border-[var(--accent)]/20">
+                <FootballAvatar seed={myPred!.user.avatarSeed} size={20} />
+                <span className="text-[10px] text-[var(--foreground-subtle)] shrink-0">Moi :</span>
+                <span className="text-xs font-bold text-[var(--accent)] truncate flex-1">{myLabel}</span>
+              </div>
+            )}
+
+            {/* Aperçu 3 premiers */}
+            <div className="flex flex-col px-3 py-1.5 gap-0.5">
+              {preview.filter((p) => p.user.id !== userId).slice(0, myLabel ? 2 : 3).map((p) => (
+                <div key={p.user.id} className="flex items-center gap-2 py-1">
+                  <FootballAvatar seed={p.user.avatarSeed} size={20} />
+                  <span className="text-xs text-[var(--foreground)] truncate flex-1">
+                    {p.user.firstName} {p.user.lastName}
+                  </span>
+                  <span className="text-xs font-semibold text-[var(--foreground-muted)] truncate max-w-[140px]">
+                    {getLabel(p, key)}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Footer */}
+            <div className="border-t border-[var(--border)] px-3 py-2">
+              <button
+                onClick={() => setOpenModal({ key, label, icon })}
+                className="text-[10px] font-semibold text-[var(--accent)] hover:underline"
+              >
+                Voir les {filled.length} →
+              </button>
+            </div>
+          </div>
         )
       })}
+
+      {/* Modal liste complète */}
+      {openModal && (
+        <BonusModal
+          category={openModal}
+          predictions={predictions}
+          getLabel={getLabel}
+          userId={userId}
+          onClose={() => setOpenModal(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+function BonusModal({
+  category,
+  predictions,
+  getLabel,
+  userId,
+  onClose,
+}: {
+  category: { key: BonusCategoryKey | string; label: string; icon: string }
+  predictions: CommunityBonusPrediction[]
+  getLabel: (p: CommunityBonusPrediction, key: string) => string | null
+  userId: string
+  onClose: () => void
+}) {
+  const filled = [...predictions]
+    .filter((p) => getLabel(p, category.key) !== null)
+    .sort((a, b) => {
+      if (a.user.id === userId) return -1
+      if (b.user.id === userId) return 1
+      return `${a.user.firstName} ${a.user.lastName}`.localeCompare(`${b.user.firstName} ${b.user.lastName}`)
+    })
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-end justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg bg-[var(--background)] rounded-t-2xl max-h-[80vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-center pt-3 pb-1">
+          <div className="w-10 h-1 rounded-full bg-[var(--border)]" />
+        </div>
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border)]">
+          <span className="text-base">{category.icon}</span>
+          <span className="flex-1 text-sm font-bold text-[var(--foreground)]">{category.label}</span>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-[var(--surface-elevated)]">
+            <X size={16} className="text-[var(--foreground-muted)]" />
+          </button>
+        </div>
+        <div className="overflow-y-auto flex-1 px-2 py-2 flex flex-col gap-0.5">
+          {filled.map((p) => {
+            const isMe = p.user.id === userId
+            const val = getLabel(p, category.key)
+            return (
+              <div
+                key={p.user.id}
+                className={cn(
+                  "flex items-center gap-2 py-2 px-3 rounded-xl",
+                  isMe ? "bg-[var(--accent-dim)]" : "bg-[var(--surface-elevated)]"
+                )}
+              >
+                <FootballAvatar seed={p.user.avatarSeed} size={24} />
+                <span className={cn("text-xs truncate w-28 shrink-0", isMe ? "text-[var(--accent)] font-semibold" : "text-[var(--foreground)]")}>
+                  {p.user.firstName} {p.user.lastName}
+                  {isMe && <span className="text-[9px] ml-1 opacity-60">(moi)</span>}
+                </span>
+                <span className="text-xs font-semibold text-[var(--foreground-muted)] truncate flex-1 text-right">
+                  {val}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
     </div>
   )
 }
@@ -678,85 +747,3 @@ function StatsSection({
   )
 }
 
-function PollBlock({
-  label,
-  icon,
-  total,
-  myValue,
-  votes,
-}: {
-  label: string
-  icon: string
-  total: number
-  myValue: string | null
-  votes: Record<string, number>
-}) {
-  const [expanded, setExpanded] = useState(false)
-
-  const sorted = Object.entries(votes).sort((a, b) => b[1] - a[1])
-  if (sorted.length === 0) return null
-
-  const top = sorted[0][1]
-  const visible = expanded ? sorted : sorted.slice(0, 5)
-  const hasMore = sorted.length > 5
-
-  return (
-    <div className="surface-card overflow-hidden">
-      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-[var(--border)]">
-        <span className="text-sm">{icon}</span>
-        <span className="flex-1 text-xs font-bold text-[var(--foreground)]">{label}</span>
-        {myValue && (
-          <span className="text-[10px] text-[var(--accent)] font-semibold truncate max-w-[120px]">
-            Toi : {myValue}
-          </span>
-        )}
-      </div>
-
-      <div className="flex flex-col px-3 py-2 gap-2">
-        {visible.map(([name, count], i) => {
-          const pct = Math.round((count / total) * 100)
-          const isTop = i === 0
-          const isMyChoice = myValue?.includes(name.trim()) || name.trim() === myValue?.trim()
-
-          return (
-            <div key={name} className="flex flex-col gap-1">
-              <div className="flex items-center justify-between">
-                <span className={cn(
-                  "text-xs truncate flex-1",
-                  isMyChoice ? "text-[var(--accent)] font-semibold" : isTop ? "text-[var(--foreground)] font-medium" : "text-[var(--foreground-muted)]"
-                )}>
-                  {i === 0 && "🥇 "}
-                  {i === 1 && "🥈 "}
-                  {i === 2 && "🥉 "}
-                  {name}
-                  {isMyChoice && <span className="text-[9px] ml-1 opacity-60">(toi)</span>}
-                </span>
-                <span className="text-[10px] text-[var(--foreground-subtle)] ml-2 shrink-0">
-                  {count} · {pct}%
-                </span>
-              </div>
-              <div className="h-1.5 rounded-full bg-[var(--surface-elevated)] overflow-hidden">
-                <div
-                  className={cn(
-                    "h-full rounded-full transition-all duration-500",
-                    isMyChoice ? "bg-[var(--accent)]" : isTop ? "bg-[var(--gold)]" : "bg-[var(--foreground-subtle)]/40"
-                  )}
-                  style={{ width: `${Math.round((count / top) * 100)}%` }}
-                />
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {hasMore && (
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="w-full py-2 text-[10px] font-semibold text-[var(--foreground-subtle)] hover:text-[var(--foreground-muted)] border-t border-[var(--border)] transition-colors"
-        >
-          {expanded ? "Réduire ▲" : `Voir ${sorted.length - 5} choix de plus ▼`}
-        </button>
-      )}
-    </div>
-  )
-}
