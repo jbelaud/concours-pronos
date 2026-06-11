@@ -159,6 +159,7 @@ function ContestCard({
     status: string
     isFree: boolean
     buyIn: number
+    allowPublicJoin: boolean
     template: { name: string } | null
     _count: { participants: number }
     prizepool: { totalAmount: number; itmCount: number } | null
@@ -166,6 +167,7 @@ function ContestCard({
   entry: { rank: number; totalPoints: number } | null
 }) {
   const isFinished = contest.status === "FINISHED"
+  const registrationsClosed = !isFinished && !contest.allowPublicJoin
 
   return (
     <Link
@@ -184,6 +186,11 @@ function ContestCard({
           <span className={cn("text-[10px] font-semibold shrink-0", STATUS_LABEL_COLOR[contest.status])}>
             {STATUS_LABELS[contest.status]}
           </span>
+          {registrationsClosed && (
+            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-[var(--error)]/15 text-[var(--error)] border border-[var(--error)]/25 shrink-0">
+              Inscriptions closes
+            </span>
+          )}
         </div>
 
         {contest.template && (
