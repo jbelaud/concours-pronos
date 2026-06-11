@@ -97,7 +97,7 @@ export function CommunityTab({ matches, communityPredictions, communityBonusPred
         <BonusSection predictions={communityBonusPredictions} groups={groups} userId={userId} />
       )}
       {activeSection === "stats" && hasBonusPreds && (
-        <StatsSection predictions={communityBonusPredictions} lockedMatches={lockedMatches} communityByMatch={communityByMatch} userId={userId} />
+        <StatsSection predictions={communityBonusPredictions} lockedMatches={lockedMatches} communityByMatch={communityByMatch} groups={groups} userId={userId} />
       )}
     </div>
   )
@@ -598,54 +598,121 @@ function BonusModal({
 
 // ── Stats section ─────────────────────────────────────────────────────────────
 
+function StatBars({ entries, myKey, total }: {
+  entries: { key: string; label: string; count: number }[]
+  myKey: string | null
+  total: number
+}) {
+  const top = entries[0]?.count ?? 1
+  return (
+    <div className="flex flex-col px-3 py-2 gap-2">
+      {entries.map((e, i) => {
+        const pct = Math.round((e.count / total) * 100)
+        const isMe = e.key === myKey
+        return (
+          <div key={e.key} className="flex flex-col gap-1">
+            <div className="flex items-center justify-between gap-2">
+              <span className={cn("text-xs flex-1 truncate", isMe ? "text-[var(--accent)] font-semibold" : "text-[var(--foreground)]")}>
+                {i === 0 ? "🥇 " : i === 1 ? "🥈 " : i === 2 ? "🥉 " : "    "}{e.label}
+                {isMe && <span className="text-[9px] ml-1 opacity-60">(toi)</span>}
+              </span>
+              <span className="text-[10px] text-[var(--foreground-subtle)] shrink-0">{e.count} · {pct}%</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-[var(--surface-elevated)] overflow-hidden">
+              <div
+                className={cn("h-full rounded-full", isMe ? "bg-[var(--accent)]" : i === 0 ? "bg-[var(--gold)]" : "bg-[var(--foreground-subtle)]/40")}
+                style={{ width: `${Math.round((e.count / top) * 100)}%` }}
+              />
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function StatsSection({
   predictions,
   lockedMatches,
   communityByMatch,
+  groups,
   userId,
 }: {
   predictions: CommunityBonusPrediction[]
   lockedMatches: MatchWithPrediction[]
   communityByMatch: Record<string, CommunityPrediction[]>
+  groups: GroupWithTeams[]
   userId: string
 }) {
   const total = predictions.length
+  const myPred = predictions.find((p) => p.user.id === userId)
 
-  // Vainqueur stats
-  const winnerVotes = predictions.filter((p) => p.winner).reduce<Record<string, { name: string; flag: string | null; count: number }>>((acc, p) => {
-    const key = p.winner!.id
-    if (!acc[key]) acc[key] = { name: p.winner!.name, flag: p.winner!.flagEmoji, count: 0 }
-    acc[key].count++
-    return acc
-  }, {})
-  const topWinners = Object.values(winnerVotes).sort((a, b) => b.count - a.count).slice(0, 5)
+  const teamsByCode = useMemo(() => {
+    const map: Record<string, { name: string; flagEmoji: string | null }> = {}
+    for (const g of groups) for (const gt of g.teams) map[gt.team.code] = { name: gt.team.name, flagEmoji: gt.team.flagEmoji }
+    return map
+  }, [groups])
 
-  // Buteur stats
-  const scorerVotes = predictions.filter((p) => p.topScorerFreeText).reduce<Record<string, number>>((acc, p) => {
-    const key = p.topScorerFreeText!
-    acc[key] = (acc[key] ?? 0) + 1
-    return acc
-  }, {})
-  const topScorers = Object.entries(scorerVotes).sort((a, b) => b[1] - a[1]).slice(0, 5)
+  // Helper : agrège les votes par clé
+  const tally = <T,>(items: T[], key: (item: T) => string | null, label: (item: T) => string) => {
+    const map: Record<string, { label: string; count: number }> = {}
+    for (const item of items) {
+      const k = key(item)
+      if (!k) continue
+      if (!map[k]) map[k] = { label: label(item), count: 0 }
+      map[k].count++
+    }
+    return Object.entries(map).map(([k, v]) => ({ key: k, label: v.label, count: v.count })).sort((a, b) => b.count - a.count)
+  }
+
+  const winnerEntries = tally(predictions, (p) => p.winner?.id ?? null, (p) => `${p.winner?.flagEmoji ?? ""} ${p.winner?.name ?? ""}`)
+  const scorerEntries = tally(predictions, (p) => p.topScorerFreeText ?? null, (p) => p.topScorerFreeText ?? "")
+  const attackEntries = tally(predictions, (p) => p.bestAttack?.id ?? null, (p) => `${p.bestAttack?.flagEmoji ?? ""} ${p.bestAttack?.name ?? ""}`)
+  const defenseEntries = tally(predictions, (p) => p.bestDefense?.id ?? null, (p) => `${p.bestDefense?.flagEmoji ?? ""} ${p.bestDefense?.name ?? ""}`)
 
   // Stats matchs : taux de réussite global
   const finishedMatches = lockedMatches.filter((m) => m.status === "FINISHED" && m.homeScore !== null)
   const totalPreds = finishedMatches.reduce((sum, m) => sum + (communityByMatch[m.id]?.length ?? 0), 0)
   const exactPreds = finishedMatches.reduce((sum, m) => {
-    const preds = communityByMatch[m.id] ?? []
-    return sum + preds.filter((p) => p.homeScore === m.homeScore && p.awayScore === m.awayScore).length
+    return sum + (communityByMatch[m.id] ?? []).filter((p) => p.homeScore === m.homeScore && p.awayScore === m.awayScore).length
   }, 0)
   const correctPreds = finishedMatches.reduce((sum, m) => {
-    const preds = communityByMatch[m.id] ?? []
     const realRes = m.homeScore! > m.awayScore! ? "home" : m.homeScore! === m.awayScore! ? "draw" : "away"
-    return sum + preds.filter((p) => {
+    return sum + (communityByMatch[m.id] ?? []).filter((p) => {
       const pr = p.homeScore > p.awayScore ? "home" : p.homeScore === p.awayScore ? "draw" : "away"
       return pr === realRes && !(p.homeScore === m.homeScore && p.awayScore === m.awayScore)
     }).length
   }, 0)
-
   const exactPct = totalPreds > 0 ? Math.round((exactPreds / totalPreds) * 100) : 0
   const correctPct = totalPreds > 0 ? Math.round((correctPreds / totalPreds) * 100) : 0
+
+  const statBlocks: { icon: string; label: string; entries: { key: string; label: string; count: number }[]; myKey: string | null }[] = [
+    { icon: "🏆", label: "Vainqueur favori",   entries: winnerEntries.slice(0, 5),  myKey: myPred?.winner?.id ?? null },
+    { icon: "⚽", label: "Buteur favori",       entries: scorerEntries.slice(0, 5), myKey: myPred?.topScorerFreeText ?? null },
+    { icon: "⚔️", label: "Meilleure attaque",   entries: attackEntries.slice(0, 5), myKey: myPred?.bestAttack?.id ?? null },
+    { icon: "🛡️", label: "Meilleure défense",   entries: defenseEntries.slice(0, 5), myKey: myPred?.bestDefense?.id ?? null },
+  ]
+
+  // Stats par groupe
+  const groupBlocks = groups.map((group) => {
+    const entries = tally(
+      predictions,
+      (p) => {
+        const gp = p.groupPredictions.find((g) => g.groupLetter === group.letter)
+        return gp ? `${gp.firstTeamCode}|${gp.secondTeamCode}` : null
+      },
+      (p) => {
+        const gp = p.groupPredictions.find((g) => g.groupLetter === group.letter)
+        if (!gp) return ""
+        const first = teamsByCode[gp.firstTeamCode]
+        const second = teamsByCode[gp.secondTeamCode]
+        return `${first?.flagEmoji ?? ""} ${first?.name ?? gp.firstTeamCode}  ·  ${second?.flagEmoji ?? ""} ${second?.name ?? gp.secondTeamCode}`
+      }
+    )
+    const myGP = myPred?.groupPredictions.find((g) => g.groupLetter === group.letter)
+    const myKey = myGP ? `${myGP.firstTeamCode}|${myGP.secondTeamCode}` : null
+    return { icon: "📋", label: `Groupe ${group.letter} — qualifiés`, entries: entries.slice(0, 5), myKey }
+  })
 
   return (
     <div className="flex flex-col gap-3">
@@ -672,77 +739,20 @@ function StatsSection({
         </div>
       )}
 
-      {/* Top vainqueurs */}
-      {topWinners.length > 0 && (
-        <div className="surface-card overflow-hidden">
-          <div className="flex items-center gap-2 px-3 py-2.5 border-b border-[var(--border)]">
-            <span className="text-sm">🏆</span>
-            <span className="text-xs font-bold text-[var(--foreground)]">Vainqueur favori</span>
-            <span className="ml-auto text-[10px] text-[var(--foreground-subtle)]">{total} votes</span>
+      {/* Blocs bonus + groupes */}
+      {[...statBlocks, ...groupBlocks].map(({ icon, label, entries, myKey }) => {
+        if (entries.length === 0) return null
+        return (
+          <div key={label} className="surface-card overflow-hidden">
+            <div className="flex items-center gap-2 px-3 py-2.5 border-b border-[var(--border)]">
+              <span className="text-sm">{icon}</span>
+              <span className="text-xs font-bold text-[var(--foreground)]">{label}</span>
+              <span className="ml-auto text-[10px] text-[var(--foreground-subtle)]">{total} votes</span>
+            </div>
+            <StatBars entries={entries} myKey={myKey} total={total} />
           </div>
-          <div className="flex flex-col px-3 py-2 gap-2">
-            {topWinners.map((w, i) => {
-              const pct = Math.round((w.count / total) * 100)
-              const myVote = predictions.find((p) => p.user.id === userId)?.winner?.id
-              const isMe = Object.values(winnerVotes).find((v) => v.name === w.name) && predictions.find((p) => p.user.id === userId)?.winner?.name === w.name
-              return (
-                <div key={w.name} className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between">
-                    <span className={cn("text-xs flex-1", isMe ? "text-[var(--accent)] font-semibold" : "text-[var(--foreground)]")}>
-                      {i === 0 ? "🥇 " : i === 1 ? "🥈 " : i === 2 ? "🥉 " : "    "}
-                      {w.flag ?? ""} {w.name}
-                      {isMe && <span className="text-[9px] ml-1 opacity-60">(toi)</span>}
-                    </span>
-                    <span className="text-[10px] text-[var(--foreground-subtle)] ml-2 shrink-0">{w.count} · {pct}%</span>
-                  </div>
-                  <div className="h-1.5 rounded-full bg-[var(--surface-elevated)] overflow-hidden">
-                    <div
-                      className={cn("h-full rounded-full", isMe ? "bg-[var(--accent)]" : i === 0 ? "bg-[var(--gold)]" : "bg-[var(--foreground-subtle)]/40")}
-                      style={{ width: `${Math.round((w.count / topWinners[0].count) * 100)}%` }}
-                    />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Top buteurs */}
-      {topScorers.length > 0 && (
-        <div className="surface-card overflow-hidden">
-          <div className="flex items-center gap-2 px-3 py-2.5 border-b border-[var(--border)]">
-            <span className="text-sm">⚽</span>
-            <span className="text-xs font-bold text-[var(--foreground)]">Buteur favori</span>
-            <span className="ml-auto text-[10px] text-[var(--foreground-subtle)]">{total} votes</span>
-          </div>
-          <div className="flex flex-col px-3 py-2 gap-2">
-            {topScorers.map(([name, count], i) => {
-              const pct = Math.round((count / total) * 100)
-              const myScorer = predictions.find((p) => p.user.id === userId)?.topScorerFreeText
-              const isMe = myScorer === name
-              return (
-                <div key={name} className="flex flex-col gap-1">
-                  <div className="flex items-center justify-between">
-                    <span className={cn("text-xs flex-1", isMe ? "text-[var(--accent)] font-semibold" : "text-[var(--foreground)]")}>
-                      {i === 0 ? "🥇 " : i === 1 ? "🥈 " : i === 2 ? "🥉 " : "    "}
-                      {name}
-                      {isMe && <span className="text-[9px] ml-1 opacity-60">(toi)</span>}
-                    </span>
-                    <span className="text-[10px] text-[var(--foreground-subtle)] ml-2 shrink-0">{count} · {pct}%</span>
-                  </div>
-                  <div className="h-1.5 rounded-full bg-[var(--surface-elevated)] overflow-hidden">
-                    <div
-                      className={cn("h-full rounded-full", isMe ? "bg-[var(--accent)]" : i === 0 ? "bg-[var(--gold)]" : "bg-[var(--foreground-subtle)]/40")}
-                      style={{ width: `${Math.round((count / topScorers[0][1]) * 100)}%` }}
-                    />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
+        )
+      })}
     </div>
   )
 }
