@@ -108,6 +108,13 @@ export default async function PronosticsPage({ searchParams }: { searchParams: P
     db.scorerCandidate.findMany({ where: { contestId: contest.id }, orderBy: { name: "asc" } }),
   ])
 
+  // Résoudre le nom du buteur : topScorerFreeText si renseigné, sinon nom du candidat via topScorerId
+  const scorerById = Object.fromEntries(scorerCandidates.map((s) => [s.id, s.name]))
+  const communityBonusPredictionsResolved = communityBonusPredictions.map((p) => ({
+    ...p,
+    topScorerFreeText: p.topScorerFreeText ?? (p.topScorerId ? (scorerById[p.topScorerId] ?? null) : null),
+  }))
+
   // Comptage progression (seulement matchs avec équipes)
   const matchesWithTeams = matchesWithPrediction.filter((m) => m.homeTeamId)
   const pendingMatchCount = matchesWithTeams.filter((m) => !m.isLocked && !m.prediction).length
@@ -126,7 +133,7 @@ export default async function PronosticsPage({ searchParams }: { searchParams: P
       contest={{ id: contest.id, name: contest.name, status: contest.status }}
       matches={matchesWithPrediction}
       communityPredictions={communityPredictions}
-      communityBonusPredictions={communityBonusPredictions}
+      communityBonusPredictions={communityBonusPredictionsResolved}
       teams={teams}
       groups={groups}
       scorerCandidates={scorerCandidates}
