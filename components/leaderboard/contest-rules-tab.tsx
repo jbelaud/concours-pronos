@@ -10,6 +10,7 @@ import {
   Shield,
   Medal,
   ArrowUpDown,
+  Clock,
 } from "lucide-react"
 import type { TieBreakerKey } from "@/lib/ranking"
 
@@ -139,6 +140,15 @@ export function ContestRulesTab({ settings }: Props) {
 
   return (
     <div className="flex flex-col gap-5">
+
+      {/* Avertissement saisie manuelle */}
+      <div className="flex items-start gap-3 p-3.5 rounded-xl border border-[var(--warning)]/30 bg-[var(--warning-dim)]">
+        <Clock size={15} className="text-[var(--warning)] mt-0.5 shrink-0" />
+        <p className="text-xs text-[var(--foreground-muted)] leading-relaxed">
+          <span className="font-semibold text-[var(--foreground)]">Mise à jour manuelle — </span>
+          Les résultats des matchs, le vainqueur de la compétition, le meilleur buteur ainsi que les bonus sont saisis manuellement. Un léger décalage dans le classement est possible entre la fin d&apos;un match et sa prise en compte.
+        </p>
+      </div>
 
       {/* Barème des points */}
       <section className="surface-card p-4 flex flex-col gap-3">
