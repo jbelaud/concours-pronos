@@ -285,10 +285,13 @@ export function resolveRoundOf32(
   return matchups.map(({ matchNumber, homeSlot, awaySlot, homeLabel, awayLabel }) => {
     const home = homeSlot()
     const away = awaySlot()
+    // Only treat a slot as resolved if the team has actually played matches
+    const homeResolved = home && home.played > 0 ? home : null
+    const awayResolved = away && away.played > 0 ? away : null
     return {
       matchNumber,
-      homeTeamCode: home?.code ?? null,
-      awayTeamCode: away?.code ?? null,
+      homeTeamCode: homeResolved?.code ?? null,
+      awayTeamCode: awayResolved?.code ?? null,
       homeLabel,
       awayLabel,
     }
