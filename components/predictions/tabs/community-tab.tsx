@@ -58,7 +58,7 @@ export function CommunityTab({ matches, communityPredictions, communityBonusPred
       .sort((a, b) => {
         const phaseOrder = (PHASE_ORDER[a.phase] ?? 99) - (PHASE_ORDER[b.phase] ?? 99)
         if (phaseOrder !== 0) return phaseOrder
-        return new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime()
+        return new Date(b.kickoff).getTime() - new Date(a.kickoff).getTime()
       })
   }, [matches, communityByMatch])
 
