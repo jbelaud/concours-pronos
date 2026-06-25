@@ -327,20 +327,108 @@ export function MatchesTab({ matches, contestId, communityPredictions, knockoutS
                 <MatchCardWithCommunity key={match.id} match={match} contestId={contestId} community={communityByMatch[match.id] ?? []} />
               ))
             )
+          ) : currentMatches.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
+              <span className="text-3xl">⏳</span>
+              <p className="text-sm text-[var(--foreground-muted)]">Aucun match pour cette sélection.</p>
+            </div>
+          ) : groupFilter === "day" ? (
+            // Vue jour : accordion par groupe
+            <GroupDayAccordions matches={currentMatches} contestId={contestId} communityByMatch={communityByMatch} />
           ) : (
-            currentMatches.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 gap-2 text-center">
-                <span className="text-3xl">⏳</span>
-                <p className="text-sm text-[var(--foreground-muted)]">Aucun match pour cette sélection.</p>
-              </div>
-            ) : (
-              currentMatches.map((match) => (
-                <MatchCardWithCommunity key={match.id} match={match} contestId={contestId} community={communityByMatch[match.id] ?? []} />
-              ))
-            )
+            // Vue groupe unique : liste plate
+            currentMatches.map((match) => (
+              <MatchCardWithCommunity key={match.id} match={match} contestId={contestId} community={communityByMatch[match.id] ?? []} />
+            ))
           )}
         </motion.div>
       </AnimatePresence>
+    </div>
+  )
+}
+
+function GroupDayAccordions({ matches, contestId, communityByMatch }: {
+  matches: MatchWithPrediction[]
+  contestId: string
+  communityByMatch: Record<string, CommunityPrediction[]>
+}) {
+  // Regroupe les matchs du jour par lettre de groupe
+  const byGroup = matches.reduce<Record<string, MatchWithPrediction[]>>((acc, m) => {
+    const key = m.groupLetter ?? "?"
+    if (!acc[key]) acc[key] = []
+    acc[key].push(m)
+    return acc
+  }, {})
+  const groupLetters = Object.keys(byGroup).sort()
+
+  // Si un seul groupe dans la journée, pas besoin d'accordion
+  if (groupLetters.length <= 1) {
+    return (
+      <>
+        {matches.map((match) => (
+          <MatchCardWithCommunity key={match.id} match={match} contestId={contestId} community={communityByMatch[match.id] ?? []} />
+        ))}
+      </>
+    )
+  }
+
+  return (
+    <>
+      {groupLetters.map((letter) => {
+        const groupMatches = byGroup[letter]
+        const pending = groupMatches.filter((m) => !m.isLocked && !m.prediction).length
+        return (
+          <GroupAccordion
+            key={letter}
+            letter={letter}
+            matchCount={groupMatches.length}
+            pendingCount={pending}
+          >
+            {groupMatches.map((match) => (
+              <MatchCardWithCommunity key={match.id} match={match} contestId={contestId} community={communityByMatch[match.id] ?? []} />
+            ))}
+          </GroupAccordion>
+        )
+      })}
+    </>
+  )
+}
+
+function GroupAccordion({ letter, matchCount, pendingCount, children }: {
+  letter: string
+  matchCount: number
+  pendingCount: number
+  children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(true) // ouvert par défaut pour les matchs (à pronostiquer)
+
+  return (
+    <div className="surface-card overflow-hidden">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-[var(--foreground)]">Groupe {letter}</span>
+          <span className="text-[10px] font-semibold text-[var(--foreground-muted)] bg-[var(--surface-elevated)] px-2 py-0.5 rounded-full">
+            {matchCount} match{matchCount > 1 ? "s" : ""}
+          </span>
+          {pendingCount > 0 && (
+            <span className="text-[10px] font-semibold text-[var(--error)] bg-[var(--error)]/10 px-2 py-0.5 rounded-full">
+              {pendingCount} à faire
+            </span>
+          )}
+        </div>
+        {open
+          ? <ChevronUp size={14} className="text-[var(--foreground-subtle)] shrink-0" />
+          : <ChevronDown size={14} className="text-[var(--foreground-subtle)] shrink-0" />
+        }
+      </button>
+      {open && (
+        <div className="border-t border-[var(--border)] px-3 pb-3 pt-2 flex flex-col gap-2">
+          {children}
+        </div>
+      )}
     </div>
   )
 }

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react"
 import { FootballAvatar } from "@/components/shared/football-avatar"
 import { cn, PHASE_ORDER } from "@/lib/utils"
-import { X } from "lucide-react"
+import { ChevronDown, ChevronUp, X } from "lucide-react"
 import type { MatchWithPrediction } from "@/types"
 import type { CommunityBonusPrediction } from "../prediction-hub"
 
@@ -103,7 +103,49 @@ export function CommunityTab({ matches, communityPredictions, communityBonusPred
   )
 }
 
+// ── Accordion ─────────────────────────────────────────────────────────────────
+
+function Accordion({ title, badge, children }: { title: string; badge?: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="surface-card overflow-hidden">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-[var(--foreground)]">{title}</span>
+          {badge && (
+            <span className="text-[10px] font-semibold text-[var(--foreground-muted)] bg-[var(--surface-elevated)] px-2 py-0.5 rounded-full">
+              {badge}
+            </span>
+          )}
+        </div>
+        {open
+          ? <ChevronUp size={14} className="text-[var(--foreground-subtle)] shrink-0" />
+          : <ChevronDown size={14} className="text-[var(--foreground-subtle)] shrink-0" />
+        }
+      </button>
+      {open && (
+        <div className="border-t border-[var(--border)] px-3 pb-3 pt-2 flex flex-col gap-2">
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Matches section ───────────────────────────────────────────────────────────
+
+const PHASE_FULL: Record<string, string> = {
+  GROUP: "Phase de groupes",
+  ROUND_OF_32: "1/16 de finale",
+  ROUND_OF_16: "1/8 de finale",
+  QUARTER_FINAL: "Quart de finale",
+  SEMI_FINAL: "Demi-finale",
+  THIRD_PLACE: "3e place",
+  FINAL: "Finale",
+}
 
 function MatchesSection({
   lockedMatches,
@@ -119,7 +161,7 @@ function MatchesSection({
       <div className="flex flex-col items-center justify-center py-16 gap-3">
         <span className="text-4xl">🔒</span>
         <p className="text-sm text-[var(--foreground-muted)] text-center">
-          Les pronostics de la communauté seront visibles après le coup d'envoi des matchs.
+          Les pronostics de la communauté seront visibles après le coup d&apos;envoi des matchs.
         </p>
       </div>
     )
@@ -134,22 +176,27 @@ function MatchesSection({
   const phases = Object.keys(byPhase).sort((a, b) => (PHASE_ORDER[a] ?? 99) - (PHASE_ORDER[b] ?? 99))
 
   return (
-    <div className="flex flex-col gap-4">
-      {phases.map((phase) => (
-        <div key={phase} className="flex flex-col gap-2">
-          <div className="text-[11px] font-bold text-[var(--foreground-subtle)] uppercase tracking-wide px-1">
-            {PHASE_SHORT[phase] ?? phase}
-          </div>
-          {byPhase[phase].map((match) => (
-            <MatchCommunityCard
-              key={match.id}
-              match={match}
-              preds={communityByMatch[match.id] ?? []}
-              userId={userId}
-            />
-          ))}
-        </div>
-      ))}
+    <div className="flex flex-col gap-2">
+      {phases.map((phase) => {
+        const phaseMatches = byPhase[phase]
+        const totalPreds = phaseMatches.reduce((s, m) => s + (communityByMatch[m.id]?.length ?? 0), 0)
+        return (
+          <Accordion
+            key={phase}
+            title={PHASE_FULL[phase] ?? phase}
+            badge={`${phaseMatches.length} match${phaseMatches.length > 1 ? "s" : ""} · ${totalPreds} pronos`}
+          >
+            {phaseMatches.map((match) => (
+              <MatchCommunityCard
+                key={match.id}
+                match={match}
+                preds={communityByMatch[match.id] ?? []}
+                userId={userId}
+              />
+            ))}
+          </Accordion>
+        )
+      })}
     </div>
   )
 }
