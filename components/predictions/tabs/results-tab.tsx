@@ -2,7 +2,7 @@
 
 import { useMemo } from "react"
 import { cn, PHASE_ORDER } from "@/lib/utils"
-import type { MatchWithPrediction } from "@/types"
+import type { MatchWithPrediction, ScorerCandidate, Team } from "@/types"
 
 const PHASE_LABELS: Record<string, string> = {
   GROUP: "Phase de groupes",
@@ -14,16 +14,39 @@ const PHASE_LABELS: Record<string, string> = {
   FINAL: "Finale",
 }
 
+interface BonusPred {
+  winnerId: string | null
+  topScorerId: string | null
+  topScorerFreeText: string | null
+  bestAttackId: string | null
+  bestDefenseId: string | null
+  points: number
+  groupPoints: number
+  winner: Team | null
+  bestAttack: Team | null
+  bestDefense: Team | null
+  groupPredictions: Array<{ groupLetter: string; firstTeamCode: string; secondTeamCode: string }>
+}
+
 interface Props {
   matches: MatchWithPrediction[]
   settings: {
     pointsCorrectResult: number
     pointsExactScore: number
     pointsWrongResult: number
+    pointsWinner: number
+    pointsTopScorer: number
+    pointsBestAttack: number
+    pointsBestDefense: number
+    pointsGroupFirst: number
+    pointsGroupSecond: number
   }
+  myBonusPred: BonusPred | null
+  scorerCandidates: ScorerCandidate[]
+  validatedGroupBonus: Record<string, { firstTeamCode: string; secondTeamCode: string }>
 }
 
-export function ResultsTab({ matches, settings }: Props) {
+export function ResultsTab({ matches, settings, myBonusPred, scorerCandidates, validatedGroupBonus }: Props) {
   const finishedWithPred = useMemo(() => {
     return matches
       .filter((m) => m.status === "FINISHED" && m.homeScore !== null && m.homeTeamId)
@@ -37,13 +60,36 @@ export function ResultsTab({ matches, settings }: Props) {
   const withPred = finishedWithPred.filter((m) => m.prediction)
   const withoutPred = finishedWithPred.filter((m) => !m.prediction)
 
-  const totalPoints = withPred.reduce((sum, m) => sum + (m.prediction?.points ?? 0), 0)
+  const matchPoints = withPred.reduce((sum, m) => sum + (m.prediction?.points ?? 0), 0)
+  const bonusPoints = (myBonusPred?.points ?? 0) + (myBonusPred?.groupPoints ?? 0)
+  const totalPoints = matchPoints + bonusPoints
   const exactCount = withPred.filter((m) => m.prediction?.status === "EXACT_SCORE").length
   const correctCount = withPred.filter((m) => m.prediction?.status === "CORRECT_RESULT").length
   const wrongCount = withPred.filter((m) => m.prediction?.status === "WRONG").length
   const pendingCount = withPred.filter((m) => m.prediction?.status === "PENDING").length
 
-  if (finishedWithPred.length === 0) {
+  const scorerById = Object.fromEntries(scorerCandidates.map((s) => [s.id, s.name]))
+  const scorerName = myBonusPred?.topScorerFreeText
+    ?? (myBonusPred?.topScorerId ? scorerById[myBonusPred.topScorerId] : null)
+    ?? null
+
+  const validatedGroupLetters = Object.keys(validatedGroupBonus)
+  const groupBonusLines = validatedGroupLetters.sort().map((letter) => {
+    const actual = validatedGroupBonus[letter]
+    const userPred = myBonusPred?.groupPredictions.find((gp) => gp.groupLetter === letter)
+    let pts = 0
+    let firstOk = false
+    let secondOk = false
+    if (userPred) {
+      if (userPred.firstTeamCode === actual.firstTeamCode) { pts += settings.pointsGroupFirst; firstOk = true }
+      if (userPred.secondTeamCode === actual.secondTeamCode) { pts += settings.pointsGroupSecond; secondOk = true }
+    }
+    return { letter, actual, userPred: userPred ?? null, pts, firstOk, secondOk }
+  })
+
+  const hasBonus = bonusPoints > 0 || groupBonusLines.length > 0
+
+  if (finishedWithPred.length === 0 && !hasBonus) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
         <span className="text-4xl">⏳</span>
@@ -69,11 +115,23 @@ export function ResultsTab({ matches, settings }: Props) {
           Récapitulatif
         </div>
         <div className="grid grid-cols-4 gap-2 mb-3">
-          <StatChip label="Pts gagnés" value={`+${totalPoints}`} color="accent" />
+          <StatChip label="Total pts" value={`+${totalPoints}`} color="accent" />
           <StatChip label="Score exact" value={String(exactCount)} color="success" />
           <StatChip label="Bon résultat" value={String(correctCount)} color="warning" />
           <StatChip label="Raté" value={String(wrongCount)} color="muted" />
         </div>
+        {bonusPoints > 0 && (
+          <div className="flex items-center justify-between text-[10px] mb-2 px-1">
+            <span className="text-[var(--foreground-subtle)]">Matchs</span>
+            <span className="font-bold text-[var(--foreground-muted)]">+{matchPoints} pts</span>
+          </div>
+        )}
+        {bonusPoints > 0 && (
+          <div className="flex items-center justify-between text-[10px] mb-2 px-1">
+            <span className="text-[var(--foreground-subtle)]">Bonus tournoi</span>
+            <span className="font-bold text-[var(--accent)]">+{bonusPoints} pts</span>
+          </div>
+        )}
         {pendingCount > 0 && (
           <p className="text-[10px] text-[var(--foreground-subtle)] text-center -mt-1">
             {pendingCount} match{pendingCount > 1 ? "s" : ""} en attente de résultat officiel
@@ -105,6 +163,96 @@ export function ResultsTab({ matches, settings }: Props) {
           ))}
         </div>
       )}
+
+      {/* Section bonus tournoi */}
+      {myBonusPred && (
+        <div className="flex flex-col gap-2">
+          <div className="text-[11px] font-bold text-[var(--foreground-subtle)] uppercase tracking-wide px-1">
+            Bonus tournoi
+          </div>
+
+          {/* Groupes validés */}
+          {groupBonusLines.length > 0 && (
+            <div className="surface-card p-3 flex flex-col gap-2">
+              <div className="text-[10px] font-bold text-[var(--foreground-muted)] uppercase tracking-wide">
+                Classement des groupes
+              </div>
+              {groupBonusLines.map(({ letter, actual, userPred, pts, firstOk, secondOk }) => (
+                <div key={letter} className="flex items-center gap-2 py-1.5 border-b border-[var(--border)] last:border-0">
+                  <span className="text-[10px] font-black text-[var(--foreground-subtle)] w-5 shrink-0">G{letter}</span>
+                  <div className="flex-1 flex flex-col gap-0.5">
+                    <div className="flex items-center gap-1">
+                      <span className={cn("text-[10px] font-semibold", firstOk ? "text-[var(--success)]" : "text-[var(--foreground-muted)]")}>
+                        1. {actual.firstTeamCode}
+                      </span>
+                      {firstOk && <span className="text-[9px] text-[var(--success)]">✓</span>}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className={cn("text-[10px] font-semibold", secondOk ? "text-[var(--success)]" : "text-[var(--foreground-muted)]")}>
+                        2. {actual.secondTeamCode}
+                      </span>
+                      {secondOk && <span className="text-[9px] text-[var(--success)]">✓</span>}
+                    </div>
+                    {userPred && (
+                      <div className="text-[9px] text-[var(--foreground-subtle)] mt-0.5">
+                        Mon prono : {userPred.firstTeamCode} / {userPred.secondTeamCode}
+                      </div>
+                    )}
+                    {!userPred && (
+                      <div className="text-[9px] text-[var(--foreground-subtle)] italic mt-0.5">Pas de pronostic</div>
+                    )}
+                  </div>
+                  <span className={cn("text-xs font-black shrink-0", pts > 0 ? "text-[var(--success)]" : "text-[var(--foreground-muted)]")}>
+                    {pts > 0 ? `+${pts}` : "0"} pt{pts > 1 ? "s" : ""}
+                  </span>
+                </div>
+              ))}
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[10px] text-[var(--foreground-subtle)]">Total groupes</span>
+                <span className="text-xs font-black text-[var(--accent)]">+{myBonusPred.groupPoints} pts</span>
+              </div>
+            </div>
+          )}
+
+          {/* Bonus finaux */}
+          {myBonusPred.points > 0 || myBonusPred.winnerId || scorerName || myBonusPred.bestAttackId || myBonusPred.bestDefenseId ? (
+            <div className="surface-card p-3 flex flex-col gap-2">
+              <div className="text-[10px] font-bold text-[var(--foreground-muted)] uppercase tracking-wide">
+                Bonus finaux
+              </div>
+              <BonusLine
+                label="Vainqueur du tournoi"
+                emoji="🏆"
+                prediction={myBonusPred.winner?.name ?? null}
+                pointsMax={settings.pointsWinner}
+                earned={myBonusPred.points > 0 && myBonusPred.winnerId ? undefined : undefined}
+              />
+              <BonusLine
+                label="Meilleur buteur"
+                emoji="⚽"
+                prediction={scorerName}
+                pointsMax={settings.pointsTopScorer}
+              />
+              <BonusLine
+                label="Meilleure attaque"
+                emoji="⚔️"
+                prediction={myBonusPred.bestAttack?.name ?? null}
+                pointsMax={settings.pointsBestAttack}
+              />
+              <BonusLine
+                label="Meilleure défense"
+                emoji="🛡️"
+                prediction={myBonusPred.bestDefense?.name ?? null}
+                pointsMax={settings.pointsBestDefense}
+              />
+              <div className="flex items-center justify-between pt-1 border-t border-[var(--border)]">
+                <span className="text-[10px] text-[var(--foreground-subtle)]">Total bonus finaux</span>
+                <span className="text-xs font-black text-[var(--accent)]">+{myBonusPred.points} pts</span>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
     </div>
   )
 }
@@ -121,6 +269,29 @@ function StatChip({ label, value, color }: { label: string; value: string; color
     <div className="flex flex-col items-center gap-0.5 bg-[var(--surface-elevated)] rounded-xl py-2">
       <span className={cn("text-base font-black tabular-nums", colorClass)}>{value}</span>
       <span className="text-[9px] text-[var(--foreground-subtle)]">{label}</span>
+    </div>
+  )
+}
+
+function BonusLine({ label, emoji, prediction, pointsMax }: {
+  label: string
+  emoji: string
+  prediction: string | null
+  pointsMax: number
+  earned?: number
+}) {
+  return (
+    <div className="flex items-center gap-2 py-1 border-b border-[var(--border)] last:border-0">
+      <span className="text-sm shrink-0">{emoji}</span>
+      <div className="flex-1 min-w-0">
+        <div className="text-[10px] text-[var(--foreground-subtle)]">{label}</div>
+        {prediction ? (
+          <div className="text-xs font-semibold text-[var(--foreground)] truncate">{prediction}</div>
+        ) : (
+          <div className="text-xs text-[var(--foreground-subtle)] italic">Pas de pronostic</div>
+        )}
+      </div>
+      <span className="text-[10px] text-[var(--foreground-subtle)] shrink-0">max +{pointsMax} pts</span>
     </div>
   )
 }

@@ -145,10 +145,19 @@ export default async function PronosticsPage({ searchParams }: { searchParams: P
       bonusTotal={bonusTotal}
       userId={userId}
       knockoutScoringRule={contest.settings?.knockoutScoringRule ?? "REGULAR_TIME"}
+      validatedGroupBonus={
+        (contest.settings?.validatedGroupBonus as Record<string, { firstTeamCode: string; secondTeamCode: string }>) ?? {}
+      }
       settings={{
         pointsCorrectResult: contest.settings?.pointsCorrectResult ?? 3,
         pointsExactScore: contest.settings?.pointsExactScore ?? 1,
         pointsWrongResult: contest.settings?.pointsWrongResult ?? 0,
+        pointsWinner: contest.settings?.pointsWinner ?? 10,
+        pointsTopScorer: contest.settings?.pointsTopScorer ?? 5,
+        pointsBestAttack: contest.settings?.pointsBestAttack ?? 3,
+        pointsBestDefense: contest.settings?.pointsBestDefense ?? 3,
+        pointsGroupFirst: contest.settings?.pointsGroupFirst ?? 2,
+        pointsGroupSecond: contest.settings?.pointsGroupSecond ?? 1,
       }}
     />
   )

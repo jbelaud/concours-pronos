@@ -24,6 +24,8 @@ interface BonusPred {
   topScorerFreeText: string | null
   bestAttackId: string | null
   bestDefenseId: string | null
+  points: number
+  groupPoints: number
   winner: Team | null
   bestAttack: Team | null
   bestDefense: Team | null
@@ -64,10 +66,17 @@ interface Props {
   bonusTotal: number
   userId: string
   knockoutScoringRule: "REGULAR_TIME" | "FULL_TIME"
+  validatedGroupBonus: Record<string, { firstTeamCode: string; secondTeamCode: string }>
   settings: {
     pointsCorrectResult: number
     pointsExactScore: number
     pointsWrongResult: number
+    pointsWinner: number
+    pointsTopScorer: number
+    pointsBestAttack: number
+    pointsBestDefense: number
+    pointsGroupFirst: number
+    pointsGroupSecond: number
   }
 }
 
@@ -176,6 +185,9 @@ export function PredictionHub(props: Props) {
               <ResultsTab
                 matches={props.matches}
                 settings={props.settings}
+                myBonusPred={props.myBonusPred}
+                scorerCandidates={props.scorerCandidates}
+                validatedGroupBonus={props.validatedGroupBonus}
               />
             )}
             {activeTab === "community" && (
