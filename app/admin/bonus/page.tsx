@@ -1,6 +1,8 @@
 import { db } from "@/lib/db"
 import { BonusManager } from "@/components/admin/bonus-manager"
+import { GroupBonusManager } from "@/components/admin/group-bonus-manager"
 import { SyncScorersButton } from "@/components/admin/sync-scorers-button"
+import { getGroupStandingsForAdmin } from "@/actions/admin.actions"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import type { Metadata } from "next"
@@ -77,6 +79,7 @@ export default async function BonusPage({ searchParams }: Props) {
   let initialBestDefenseIds: string[] = []
 
   let allMatchesFinished = false
+  const groupStandings = contest ? await getGroupStandingsForAdmin(contest.id) : []
 
   if (contest) {
     const [totalMatches, allFinishedMatches] = await Promise.all([
@@ -156,6 +159,26 @@ export default async function BonusPage({ searchParams }: Props) {
           <div className="flex items-center justify-between -mt-2">
             <p className="text-sm text-[var(--foreground-muted)]">{contest.name}</p>
             <SyncScorersButton contestId={contest.id} scorerCount={scorerCandidates.length} />
+          </div>
+          {groupStandings.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-[var(--foreground)]">Classement des groupes</h2>
+                <span className="text-[10px] font-semibold text-[var(--foreground-subtle)] bg-[var(--surface-elevated)] px-2 py-0.5 rounded-full border border-[var(--border)]">
+                  +{contest.settings?.pointsGroupFirst ?? 2} / +{contest.settings?.pointsGroupSecond ?? 1} pts
+                </span>
+              </div>
+              <GroupBonusManager
+                contestId={contest.id}
+                groups={groupStandings}
+                pointsGroupFirst={contest.settings?.pointsGroupFirst ?? 2}
+                pointsGroupSecond={contest.settings?.pointsGroupSecond ?? 1}
+              />
+            </div>
+          )}
+
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-bold text-[var(--foreground)]">Bonus finaux</h2>
           </div>
           <BonusManager
             contestId={contest.id}

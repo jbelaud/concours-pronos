@@ -101,7 +101,7 @@ export async function rebuildLeaderboard(contestId: string): Promise<void> {
       })
       const bonusPred = await db.tournamentPrediction.findUnique({
         where: { userId_contestId: { userId, contestId } },
-        select: { points: true, winnerId: true },
+        select: { points: true, groupPoints: true, winnerId: true },
       })
 
       // finalWinner vaut 1 si le joueur a trouvé le vainqueur final (bonusPred.winnerId résolu)
@@ -112,12 +112,12 @@ export async function rebuildLeaderboard(contestId: string): Promise<void> {
       return {
         userId,
         totalPoints:
-          preds.reduce((s, p) => s + p.points, 0) + (bonusPred?.points ?? 0),
+          preds.reduce((s, p) => s + p.points, 0) + (bonusPred?.points ?? 0) + (bonusPred?.groupPoints ?? 0),
         exactScores: preds.filter((p) => p.status === "EXACT_SCORE").length,
         correctResults: preds.filter(
           (p) => p.status === "EXACT_SCORE" || p.status === "CORRECT_RESULT"
         ).length,
-        bonusPoints: bonusPred?.points ?? 0,
+        bonusPoints: (bonusPred?.points ?? 0) + (bonusPred?.groupPoints ?? 0),
         finalWinner: finalWinnerFound,
         rank: 0,
       } satisfies RankedRow

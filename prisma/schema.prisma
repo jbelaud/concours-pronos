@@ -390,6 +390,7 @@ model TournamentPrediction {
   bestAttackId      String?
   bestDefenseId     String?
   points            Int       @default(0)
+  groupPoints       Int       @default(0)
   lockedAt          DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt

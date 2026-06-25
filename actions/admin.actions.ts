@@ -862,6 +862,109 @@ export async function markScorerWinner(data: {
   return { success: true }
 }
 
+// ---------------------------------------------------------------------------
+// Group predictions bonus
+// ---------------------------------------------------------------------------
+
+export async function getGroupStandingsForAdmin(contestId: string): Promise<{
+  letter: string
+  teams: { code: string; name: string; flagEmoji: string | null; position: number; points: number; played: number }[]
+  allMatchesFinished: boolean
+}[]> {
+  await requireAdmin()
+
+  const groups = await db.group.findMany({
+    where: { contestId },
+    include: { teams: { include: { team: true } } },
+    orderBy: { letter: "asc" },
+  })
+
+  const teams = await db.team.findMany({ where: { contestId } })
+  const teamMeta: Record<string, { name: string; flagEmoji: string | null }> = {}
+  for (const t of teams) teamMeta[t.code] = { name: t.name, flagEmoji: t.flagEmoji }
+
+  const groupMatches = await db.match.findMany({
+    where: { contestId, phase: "GROUP" },
+    include: { homeTeam: true, awayTeam: true },
+  })
+
+  const totalGroupMatches = groupMatches.length
+  const finishedGroupMatches = groupMatches.filter((m) => m.status === "FINISHED").length
+  const allMatchesFinished = totalGroupMatches > 0 && finishedGroupMatches === totalGroupMatches
+
+  const results: MatchResult[] = groupMatches
+    .filter((m) => m.homeScore !== null && m.awayScore !== null && m.homeTeam && m.awayTeam)
+    .map((m) => ({
+      homeTeamCode: m.homeTeam!.code,
+      awayTeamCode: m.awayTeam!.code,
+      homeScore: m.homeScore!,
+      awayScore: m.awayScore!,
+      groupLetter: m.groupLetter ?? "",
+    }))
+
+  return groups.map((group) => {
+    const teamCodes = group.teams.map((gt) => gt.team.code)
+    const standings = computeGroupStandings(group.letter, teamCodes, teamMeta, results)
+    return {
+      letter: group.letter,
+      allMatchesFinished,
+      teams: standings.map((t) => ({
+        code: t.code,
+        name: t.name,
+        flagEmoji: t.flagEmoji,
+        position: t.position,
+        points: t.points,
+        played: t.played,
+      })),
+    }
+  })
+}
+
+export async function applyGroupBonusResults(data: {
+  contestId: string
+  groupResults: { letter: string; firstTeamCode: string; secondTeamCode: string }[]
+}) {
+  await requireAdmin()
+
+  const settings = await db.contestSettings.findUnique({ where: { contestId: data.contestId } })
+  if (!settings) return { error: "Paramètres du concours introuvables." }
+
+  const allPredictions = await db.tournamentPrediction.findMany({
+    where: { contestId: data.contestId },
+    include: { groupPredictions: true },
+  })
+
+  await Promise.all(
+    allPredictions.map(async (pred) => {
+      let groupPoints = 0
+      for (const actual of data.groupResults) {
+        const userPred = pred.groupPredictions.find((gp) => gp.groupLetter === actual.letter)
+        if (!userPred) continue
+        if (userPred.firstTeamCode === actual.firstTeamCode) groupPoints += settings.pointsGroupFirst
+        if (userPred.secondTeamCode === actual.secondTeamCode) groupPoints += settings.pointsGroupSecond
+      }
+      await db.tournamentPrediction.update({
+        where: { id: pred.id },
+        data: { groupPoints },
+      })
+    })
+  )
+
+  await rebuildLeaderboard(data.contestId)
+
+  const lastSnapshot = await db.rankingSnapshot.findFirst({
+    where: { contestId: data.contestId },
+    orderBy: { matchday: "desc" },
+    select: { matchday: true },
+  })
+  const bonusMatchday = (lastSnapshot?.matchday ?? 0) + 1
+  await takeRankingSnapshot(data.contestId, bonusMatchday)
+
+  revalidatePath("/admin/bonus")
+  revalidatePath("/classement")
+  return { success: true }
+}
+
 export async function applyBonusResults(data: {
   contestId: string
   winnerId: string | null
