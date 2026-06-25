@@ -173,6 +173,9 @@ export default async function BonusPage({ searchParams }: Props) {
                 groups={groupStandings}
                 pointsGroupFirst={contest.settings?.pointsGroupFirst ?? 2}
                 pointsGroupSecond={contest.settings?.pointsGroupSecond ?? 1}
+                initialValidated={
+                  (contest.settings?.validatedGroupBonus as Record<string, { firstTeamCode: string; secondTeamCode: string }>) ?? {}
+                }
               />
             </div>
           )}

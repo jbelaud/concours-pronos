@@ -213,6 +213,7 @@ model ContestSettings {
   pointsBestDefense    Int                  @default(3)
   pointsGroupFirst     Int                  @default(2)
   pointsGroupSecond    Int                  @default(1)
+  validatedGroupBonus  Json                 @default("{}")
   tieBreakerOrder      Json                 @default("[\"exactScores\",\"correctResults\",\"finalWinner\"]")
   knockoutScoringRule  KnockoutScoringRule  @default(REGULAR_TIME)
 

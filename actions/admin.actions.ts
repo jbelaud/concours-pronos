@@ -920,14 +920,31 @@ export async function getGroupStandingsForAdmin(contestId: string): Promise<{
   })
 }
 
+// Applies group bonus for a single group letter and persists the validated state.
+// All previously validated groups are re-used to recompute groupPoints from scratch
+// so corrections are always safe.
 export async function applyGroupBonusResults(data: {
   contestId: string
-  groupResults: { letter: string; firstTeamCode: string; secondTeamCode: string }[]
+  letter: string
+  firstTeamCode: string
+  secondTeamCode: string
 }) {
   await requireAdmin()
 
   const settings = await db.contestSettings.findUnique({ where: { contestId: data.contestId } })
   if (!settings) return { error: "Paramètres du concours introuvables." }
+
+  // Merge this group into the persisted map of validated groups
+  const existing = (settings.validatedGroupBonus ?? {}) as Record<string, { firstTeamCode: string; secondTeamCode: string }>
+  const updatedMap: Record<string, { firstTeamCode: string; secondTeamCode: string }> = {
+    ...existing,
+    [data.letter]: { firstTeamCode: data.firstTeamCode, secondTeamCode: data.secondTeamCode },
+  }
+
+  await db.contestSettings.update({
+    where: { contestId: data.contestId },
+    data: { validatedGroupBonus: updatedMap },
+  })
 
   const allPredictions = await db.tournamentPrediction.findMany({
     where: { contestId: data.contestId },
@@ -937,8 +954,8 @@ export async function applyGroupBonusResults(data: {
   await Promise.all(
     allPredictions.map(async (pred) => {
       let groupPoints = 0
-      for (const actual of data.groupResults) {
-        const userPred = pred.groupPredictions.find((gp) => gp.groupLetter === actual.letter)
+      for (const [letter, actual] of Object.entries(updatedMap)) {
+        const userPred = pred.groupPredictions.find((gp) => gp.groupLetter === letter)
         if (!userPred) continue
         if (userPred.firstTeamCode === actual.firstTeamCode) groupPoints += settings.pointsGroupFirst
         if (userPred.secondTeamCode === actual.secondTeamCode) groupPoints += settings.pointsGroupSecond
