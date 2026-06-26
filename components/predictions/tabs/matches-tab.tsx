@@ -359,7 +359,11 @@ function GroupDayAccordions({ matches, contestId, communityByMatch }: {
     acc[key].push(m)
     return acc
   }, {})
-  const groupLetters = Object.keys(byGroup).sort()
+  const groupLetters = Object.keys(byGroup).sort((a, b) => {
+    const aKickoff = byGroup[a][0]?.kickoff?.getTime() ?? 0
+    const bKickoff = byGroup[b][0]?.kickoff?.getTime() ?? 0
+    return aKickoff !== bKickoff ? aKickoff - bKickoff : a.localeCompare(b)
+  })
 
   // Si un seul groupe dans la journée, pas besoin d'accordion
   if (groupLetters.length <= 1) {
