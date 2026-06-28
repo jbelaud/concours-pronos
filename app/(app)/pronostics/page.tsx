@@ -54,59 +54,54 @@ export default async function PronosticsPage({ searchParams }: { searchParams: P
     isLocked: isMatchLocked(m.kickoff),
   }))
 
-  // Pronostics communautaires (uniquement pour les matchs verrouillés avec équipes connues)
+  // Premier match avec équipes (deadline tournoi) — calcul sans requête DB
+  const firstMatchWithTeams = matches.find((m) => m.homeTeamId) ?? null
+  const tournamentLocked = firstMatchWithTeams ? isMatchLocked(firstMatchWithTeams.kickoff) : false
+
   const lockedMatchIds = matchesWithPrediction
     .filter((m) => m.isLocked && m.homeTeamId)
     .map((m) => m.id)
 
-  const communityPredictions = lockedMatchIds.length > 0
-    ? await db.prediction.findMany({
-        where: { matchId: { in: lockedMatchIds } },
+  // Toutes les requêtes indépendantes en parallèle
+  const [communityPredictions, myBonusPred, communityBonusPredictions, teams, groups, scorerCandidates] =
+    await Promise.all([
+      lockedMatchIds.length > 0
+        ? db.prediction.findMany({
+            where: { matchId: { in: lockedMatchIds } },
+            include: {
+              user: { select: { id: true, firstName: true, lastName: true, avatarSeed: true } },
+            },
+          })
+        : Promise.resolve([]),
+      db.tournamentPrediction.findUnique({
+        where: { userId_contestId: { userId, contestId: contest.id } },
         include: {
-          user: { select: { id: true, firstName: true, lastName: true, avatarSeed: true } },
-        },
-      })
-    : []
-
-  // Premier match avec équipes (deadline tournoi)
-  const firstMatchWithTeams = matches.find((m) => m.homeTeamId) ?? null
-  const tournamentLocked = firstMatchWithTeams ? isMatchLocked(firstMatchWithTeams.kickoff) : false
-
-  // Pronostic tournoi (bonus)
-  const myBonusPred = await db.tournamentPrediction.findUnique({
-    where: { userId_contestId: { userId, contestId: contest.id } },
-    include: {
-      groupPredictions: true,
-      winner: true,
-      bestAttack: true,
-      bestDefense: true,
-    },
-  })
-
-  // Pronostics bonus communautaires
-  const communityBonusPredictions = tournamentLocked
-    ? await db.tournamentPrediction.findMany({
-        where: { contestId: contest.id },
-        include: {
-          user: { select: { id: true, firstName: true, lastName: true, avatarSeed: true } },
+          groupPredictions: true,
           winner: true,
           bestAttack: true,
           bestDefense: true,
-          groupPredictions: true,
         },
-      })
-    : []
-
-  // Équipes + groupes + buteurs
-  const [teams, groups, scorerCandidates] = await Promise.all([
-    db.team.findMany({ where: { contestId: contest.id }, orderBy: { name: "asc" } }),
-    db.group.findMany({
-      where: { contestId: contest.id },
-      orderBy: { letter: "asc" },
-      include: { teams: { include: { team: true } } },
-    }),
-    db.scorerCandidate.findMany({ where: { contestId: contest.id }, orderBy: { name: "asc" } }),
-  ])
+      }),
+      tournamentLocked
+        ? db.tournamentPrediction.findMany({
+            where: { contestId: contest.id },
+            include: {
+              user: { select: { id: true, firstName: true, lastName: true, avatarSeed: true } },
+              winner: true,
+              bestAttack: true,
+              bestDefense: true,
+              groupPredictions: true,
+            },
+          })
+        : Promise.resolve([]),
+      db.team.findMany({ where: { contestId: contest.id }, orderBy: { name: "asc" } }),
+      db.group.findMany({
+        where: { contestId: contest.id },
+        orderBy: { letter: "asc" },
+        include: { teams: { include: { team: true } } },
+      }),
+      db.scorerCandidate.findMany({ where: { contestId: contest.id }, orderBy: { name: "asc" } }),
+    ])
 
   // Résoudre le nom du buteur : topScorerFreeText si renseigné, sinon nom du candidat via topScorerId
   const scorerById = Object.fromEntries(scorerCandidates.map((s) => [s.id, s.name]))

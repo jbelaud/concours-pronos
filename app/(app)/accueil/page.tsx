@@ -32,23 +32,35 @@ export default async function AccueilPage({ searchParams }: { searchParams: Prom
 
   const { contestId: requestedId } = await searchParams
 
-  // Récupérer TOUS les concours auxquels l'utilisateur participe
-  const myParticipations = await db.contestParticipant.findMany({
-    where: { userId },
-    include: {
-      contest: {
-        include: {
-          _count: { select: { participants: true } },
-          participants: { select: { hasPaid: true } },
-          prizepool: { include: { payouts: { orderBy: { position: "asc" } } } },
-          template: { select: { name: true, startDate: true } },
+  // Concours auxquels l'utilisateur participe + concours publics non rejoints — en parallèle
+  const [myParticipations, allPublicContests] = await Promise.all([
+    db.contestParticipant.findMany({
+      where: { userId },
+      include: {
+        contest: {
+          include: {
+            _count: { select: { participants: true } },
+            participants: { select: { hasPaid: true } },
+            prizepool: { include: { payouts: { orderBy: { position: "asc" } } } },
+            template: { select: { name: true, startDate: true } },
+          },
         },
       },
-    },
-    orderBy: { joinedAt: "desc" },
-  })
+      orderBy: { joinedAt: "desc" },
+    }),
+    db.contest.findMany({
+      where: { status: { in: ["ONGOING", "REGISTRATION"] }, allowPublicJoin: true },
+      include: {
+        _count: { select: { participants: true } },
+        template: { select: { name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    }),
+  ])
 
   const myContestIds = myParticipations.map((p) => p.contestId)
+  const otherActiveContests = allPublicContests.filter((c) => !myContestIds.includes(c.id)).slice(0, 3)
 
   // Tous les concours actifs de l'utilisateur
   const myActiveContests = myParticipations
@@ -61,21 +73,6 @@ export default async function AccueilPage({ searchParams }: { searchParams: Prom
       ? myActiveContests.find((c) => c.id === requestedId)
       : null
   ) ?? myActiveContests[0] ?? null
-
-  // Autres concours accessibles mais non rejoints (publics)
-  const otherActiveContests = await db.contest.findMany({
-    where: {
-      status: { in: ["ONGOING", "REGISTRATION"] },
-      id: { notIn: myContestIds },
-      allowPublicJoin: true,
-    },
-    include: {
-      _count: { select: { participants: true } },
-      template: { select: { name: true } },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 3,
-  })
 
   // Si pas de concours actif rejoint et pas de concours public, afficher message
   if (!activeContest && myParticipations.length === 0) {
@@ -118,7 +115,7 @@ export default async function AccueilPage({ searchParams }: { searchParams: Prom
   let pendingPredictions = 0
 
   if (activeContest) {
-    const [upcoming, recent, entry, part] = await Promise.all([
+    const [upcoming, recent, entry, part, pending] = await Promise.all([
       db.match.findMany({
         where: { contestId: activeContest.id, status: "SCHEDULED", kickoff: { gte: new Date() }, homeTeamId: { not: null } },
         orderBy: { kickoff: "asc" },
@@ -139,20 +136,20 @@ export default async function AccueilPage({ searchParams }: { searchParams: Prom
         where: { contestId_userId: { contestId: activeContest.id, userId } },
         select: { hasPaid: true },
       }),
+      db.match.count({
+        where: {
+          contestId: activeContest.id,
+          homeTeamId: { not: null },
+          kickoff: { gte: new Date() },
+          predictions: { none: { userId } },
+        },
+      }),
     ])
     upcomingMatches = upcoming
     recentResults = recent
     myEntry = entry
     participation = part
-
-    pendingPredictions = await db.match.count({
-      where: {
-        contestId: activeContest.id,
-        homeTeamId: { not: null },
-        kickoff: { gte: new Date() },
-        predictions: { none: { userId } },
-      },
-    })
+    pendingPredictions = pending
   }
 
   // Prizepool dynamique (seulement si payant)
