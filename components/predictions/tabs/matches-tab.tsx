@@ -136,7 +136,7 @@ export function MatchesTab({ matches, contestId, communityPredictions, knockoutS
   }, [matches])
 
   const groupDays = useMemo(() => {
-    const days = new Set(matches.filter((m) => m.phase === "GROUP").map((m) => m.kickoff.toISOString().split("T")[0]))
+    const days = new Set(matches.filter((m) => m.phase === "GROUP").map((m) => new Date(m.kickoff).toISOString().split("T")[0]))
     return Array.from(days).sort()
   }, [matches])
 
@@ -159,7 +159,7 @@ export function MatchesTab({ matches, contestId, communityPredictions, knockoutS
 
   const defaultDay = useMemo(() => {
     const pending = matches.find((m) => m.phase === "GROUP" && !m.isLocked)
-    if (pending) return pending.kickoff.toISOString().split("T")[0]
+    if (pending) return new Date(pending.kickoff).toISOString().split("T")[0]
     return groupDays[groupDays.length - 1] ?? groupDays[0] ?? ""
   }, [matches, groupDays])
 
@@ -167,13 +167,13 @@ export function MatchesTab({ matches, contestId, communityPredictions, knockoutS
   const [activeKnockoutPhase, setActiveKnockoutPhase] = useState<string>(elimPhases[0] ?? "ROUND_OF_16")
 
   const dayHasPending = useCallback(
-    (day: string) => matches.filter((m) => m.phase === "GROUP" && m.kickoff.toISOString().split("T")[0] === day).some((m) => !m.isLocked && !m.prediction),
+    (day: string) => matches.filter((m) => m.phase === "GROUP" && new Date(m.kickoff).toISOString().split("T")[0] === day).some((m) => !m.isLocked && !m.prediction),
     [matches]
   )
 
   const currentMatches = useMemo(() => {
     if (mainTab === "groups") {
-      if (groupFilter === "day") return matches.filter((m) => m.phase === "GROUP" && m.kickoff.toISOString().split("T")[0] === activeDay)
+      if (groupFilter === "day") return matches.filter((m) => m.phase === "GROUP" && new Date(m.kickoff).toISOString().split("T")[0] === activeDay)
       return matches.filter((m) => m.phase === "GROUP" && m.groupLetter === groupFilter)
     }
     return matches.filter((m) => m.phase === activeKnockoutPhase)
@@ -360,8 +360,8 @@ function GroupDayAccordions({ matches, contestId, communityByMatch }: {
     return acc
   }, {})
   const groupLetters = Object.keys(byGroup).sort((a, b) => {
-    const aKickoff = byGroup[a][0]?.kickoff?.getTime() ?? 0
-    const bKickoff = byGroup[b][0]?.kickoff?.getTime() ?? 0
+    const aKickoff = byGroup[a][0]?.kickoff ? new Date(byGroup[a][0].kickoff).getTime() : 0
+    const bKickoff = byGroup[b][0]?.kickoff ? new Date(byGroup[b][0].kickoff).getTime() : 0
     return aKickoff !== bKickoff ? aKickoff - bKickoff : a.localeCompare(b)
   })
 
