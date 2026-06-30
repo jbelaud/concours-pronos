@@ -324,7 +324,7 @@ export function MatchesTab({ matches, contestId, communityPredictions, knockoutS
               <KnockoutPlaceholder phase={activeKnockoutPhase} />
             ) : (
               currentMatches.map((match) => (
-                <MatchCardWithCommunity key={match.id} match={match} contestId={contestId} community={communityByMatch[match.id] ?? []} />
+                <MatchCardWithCommunity key={match.id} match={match} contestId={contestId} community={communityByMatch[match.id] ?? []} knockoutScoringRule={knockoutScoringRule} />
               ))
             )
           ) : currentMatches.length === 0 ? (
@@ -334,11 +334,11 @@ export function MatchesTab({ matches, contestId, communityPredictions, knockoutS
             </div>
           ) : groupFilter === "day" ? (
             // Vue jour : accordion par groupe
-            <GroupDayAccordions matches={currentMatches} contestId={contestId} communityByMatch={communityByMatch} />
+            <GroupDayAccordions matches={currentMatches} contestId={contestId} communityByMatch={communityByMatch} knockoutScoringRule={knockoutScoringRule} />
           ) : (
             // Vue groupe unique : liste plate
             currentMatches.map((match) => (
-              <MatchCardWithCommunity key={match.id} match={match} contestId={contestId} community={communityByMatch[match.id] ?? []} />
+              <MatchCardWithCommunity key={match.id} match={match} contestId={contestId} community={communityByMatch[match.id] ?? []} knockoutScoringRule={knockoutScoringRule} />
             ))
           )}
         </motion.div>
@@ -347,10 +347,11 @@ export function MatchesTab({ matches, contestId, communityPredictions, knockoutS
   )
 }
 
-function GroupDayAccordions({ matches, contestId, communityByMatch }: {
+function GroupDayAccordions({ matches, contestId, communityByMatch, knockoutScoringRule }: {
   matches: MatchWithPrediction[]
   contestId: string
   communityByMatch: Record<string, CommunityPrediction[]>
+  knockoutScoringRule: "REGULAR_TIME" | "FULL_TIME"
 }) {
   // Regroupe les matchs du jour par lettre de groupe
   const byGroup = matches.reduce<Record<string, MatchWithPrediction[]>>((acc, m) => {
@@ -370,7 +371,7 @@ function GroupDayAccordions({ matches, contestId, communityByMatch }: {
     return (
       <>
         {matches.map((match) => (
-          <MatchCardWithCommunity key={match.id} match={match} contestId={contestId} community={communityByMatch[match.id] ?? []} />
+          <MatchCardWithCommunity key={match.id} match={match} contestId={contestId} community={communityByMatch[match.id] ?? []} knockoutScoringRule={knockoutScoringRule} />
         ))}
       </>
     )
@@ -389,7 +390,7 @@ function GroupDayAccordions({ matches, contestId, communityByMatch }: {
             pendingCount={pending}
           >
             {groupMatches.map((match) => (
-              <MatchCardWithCommunity key={match.id} match={match} contestId={contestId} community={communityByMatch[match.id] ?? []} />
+              <MatchCardWithCommunity key={match.id} match={match} contestId={contestId} community={communityByMatch[match.id] ?? []} knockoutScoringRule={knockoutScoringRule} />
             ))}
           </GroupAccordion>
         )
@@ -451,7 +452,7 @@ function KnockoutPlaceholder({ phase }: { phase: string }) {
   )
 }
 
-function MatchCardWithCommunity({ match, contestId, community }: { match: MatchWithPrediction; contestId: string; community: CommunityPrediction[] }) {
+function MatchCardWithCommunity({ match, contestId, community, knockoutScoringRule }: { match: MatchWithPrediction; contestId: string; community: CommunityPrediction[]; knockoutScoringRule: "REGULAR_TIME" | "FULL_TIME" }) {
   const [showCommunity, setShowCommunity] = useState(false)
   const hasCommunity = match.isLocked && community.length > 0
 
@@ -470,7 +471,7 @@ function MatchCardWithCommunity({ match, contestId, community }: { match: MatchW
       <AnimatePresence>
         {showCommunity && hasCommunity && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
-            <CommunityMatchStats match={match} predictions={community} />
+            <CommunityMatchStats match={match} predictions={community} knockoutScoringRule={knockoutScoringRule} />
           </motion.div>
         )}
       </AnimatePresence>

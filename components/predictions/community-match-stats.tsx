@@ -15,9 +15,10 @@ interface CommunityPrediction {
 interface Props {
   match: MatchWithPrediction
   predictions: CommunityPrediction[]
+  knockoutScoringRule: "REGULAR_TIME" | "FULL_TIME"
 }
 
-export function CommunityMatchStats({ match, predictions }: Props) {
+export function CommunityMatchStats({ match, predictions, knockoutScoringRule }: Props) {
   const stats = useMemo(() => {
     const total = predictions.length
     if (total === 0) return null
@@ -39,9 +40,15 @@ export function CommunityMatchStats({ match, predictions }: Props) {
 
   if (!stats) return null
 
-  // Déterminer le résultat réel si match terminé
-  const realResult = match.status === "FINISHED" && match.homeScore !== null && match.awayScore !== null
-    ? match.homeScore > match.awayScore ? "home" : match.homeScore === match.awayScore ? "draw" : "away"
+  // Score de référence pour l'évaluation (regularTime pour knockout si REGULAR_TIME)
+  const isKnockout = match.phase !== "GROUP"
+  const refHome = isKnockout && knockoutScoringRule === "REGULAR_TIME" && match.regularTimeHome !== null
+    ? match.regularTimeHome : match.homeScore
+  const refAway = isKnockout && knockoutScoringRule === "REGULAR_TIME" && match.regularTimeAway !== null
+    ? match.regularTimeAway : match.awayScore
+
+  const realResult = match.status === "FINISHED" && refHome !== null && refAway !== null
+    ? refHome > refAway ? "home" : refHome === refAway ? "draw" : "away"
     : null
 
   return (
@@ -93,7 +100,7 @@ export function CommunityMatchStats({ match, predictions }: Props) {
       <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto">
         {predictions.map((p) => {
           const result = p.homeScore > p.awayScore ? "home" : p.homeScore === p.awayScore ? "draw" : "away"
-          const isExact = match.status === "FINISHED" && match.homeScore === p.homeScore && match.awayScore === p.awayScore
+          const isExact = match.status === "FINISHED" && refHome === p.homeScore && refAway === p.awayScore
           const isCorrect = match.status === "FINISHED" && realResult === result && !isExact
 
           return (
