@@ -8,6 +8,7 @@ interface ScoreStepperProps {
   onChange: (value: number) => void
   disabled?: boolean
   className?: string
+  min?: number
 }
 
 export function ScoreStepper({
@@ -15,9 +16,10 @@ export function ScoreStepper({
   onChange,
   disabled = false,
   className,
+  min = 0,
 }: ScoreStepperProps) {
   const decrement = () => {
-    if (disabled || value <= 0) return
+    if (disabled || value <= min) return
     onChange(value - 1)
   }
 
@@ -62,7 +64,7 @@ export function ScoreStepper({
       <button
         type="button"
         onPointerDown={decrement}
-        disabled={disabled || value <= 0}
+        disabled={disabled || value <= min}
         className={cn(
           "w-9 h-9 rounded-xl flex items-center justify-center text-lg font-bold",
           "bg-[var(--surface-elevated)] border border-[var(--border)] text-[var(--foreground)]",

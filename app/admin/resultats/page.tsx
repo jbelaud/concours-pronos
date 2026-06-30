@@ -50,7 +50,7 @@ export default async function ResultatsPage({ searchParams }: Props) {
       })
     : []
 
-  const matches = rawMatches as (MatchWithTeams & { regularTimeHome: number | null; regularTimeAway: number | null })[]
+  const matches = rawMatches as (MatchWithTeams & { regularTimeHome: number | null; regularTimeAway: number | null; extraTimeHome: number | null; extraTimeAway: number | null })[]
 
   const finishedDates = new Set(
     matches.filter((m) => m.status === "FINISHED").map((m) => m.kickoff.toISOString().split("T")[0])

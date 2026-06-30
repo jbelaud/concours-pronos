@@ -10,7 +10,12 @@ import type { MatchWithTeams } from "@/types"
 import { toast } from "sonner"
 
 interface ResultEntryProps {
-  match: MatchWithTeams & { regularTimeHome?: number | null; regularTimeAway?: number | null }
+  match: MatchWithTeams & {
+    regularTimeHome?: number | null
+    regularTimeAway?: number | null
+    extraTimeHome?: number | null
+    extraTimeAway?: number | null
+  }
   matchday: number
   knockoutScoringRule?: "REGULAR_TIME" | "FULL_TIME"
   onSaved?: () => void
@@ -21,32 +26,25 @@ const isKnockoutPhase = (phase: string) => phase !== "GROUP"
 export function ResultEntry({ match, matchday, knockoutScoringRule = "REGULAR_TIME", onSaved }: ResultEntryProps) {
   const isKnockout = isKnockoutPhase(match.phase)
 
-  // Convention for knockout results:
-  // - homeScore/awayScore = score at 90' (or after ET if no penalties)
-  // - regularTimeHome/Away = score at 90' when ET/penalties happened
-  // - If draw after ET → penaltyWinner designates who won on penalties
-  //   stored as: homeScore > awayScore (home wins) or vice versa,
-  //   with regularTimeHome = regularTimeAway = the actual drawn score
-  const hasPenalties = !!(
-    match.regularTimeHome !== null &&
-    match.regularTimeAway !== null &&
-    match.homeScore !== match.awayScore
-  )
-  const initialPenWinner: "home" | "away" | null = hasPenalties
+  // Detect existing state from DB
+  const hasExtraTimeInDb = match.regularTimeHome !== null && match.regularTimeAway !== null
+  const hasPenaltiesInDb = hasExtraTimeInDb && match.homeScore !== match.awayScore
+
+  // rtScore = score à 90' (champ principal hors extra-time, ou regularTime si extra-time)
+  const initialRtHome = hasExtraTimeInDb ? (match.regularTimeHome ?? 0) : (match.homeScore ?? 0)
+  const initialRtAway = hasExtraTimeInDb ? (match.regularTimeAway ?? 0) : (match.awayScore ?? 0)
+  // etScore = score à 120' (extraTime)
+  const initialEtHome = match.extraTimeHome ?? initialRtHome
+  const initialEtAway = match.extraTimeAway ?? initialRtAway
+  const initialPenWinner: "home" | "away" | null = hasPenaltiesInDb
     ? (match.homeScore! > match.awayScore! ? "home" : "away")
     : null
 
-  const [homeScore, setHomeScore] = useState(
-    hasPenalties ? (match.regularTimeHome ?? 0) : (match.homeScore ?? 0)
-  )
-  const [awayScore, setAwayScore] = useState(
-    hasPenalties ? (match.regularTimeAway ?? 0) : (match.awayScore ?? 0)
-  )
-  const [rtHome, setRtHome] = useState(match.regularTimeHome ?? 0)
-  const [rtAway, setRtAway] = useState(match.regularTimeAway ?? 0)
-  const [hasExtraTime, setHasExtraTime] = useState(
-    !!(match.regularTimeHome !== null && match.regularTimeAway !== null)
-  )
+  const [rtHome, setRtHome] = useState(initialRtHome)
+  const [rtAway, setRtAway] = useState(initialRtAway)
+  const [etHome, setEtHome] = useState(initialEtHome)
+  const [etAway, setEtAway] = useState(initialEtAway)
+  const [hasExtraTime, setHasExtraTime] = useState(hasExtraTimeInDb)
   const [penaltyWinner, setPenaltyWinner] = useState<"home" | "away" | null>(initialPenWinner)
   const [isPending, startTransition] = useTransition()
   const [saved, setSaved] = useState(match.status === "FINISHED")
@@ -54,27 +52,34 @@ export function ResultEntry({ match, matchday, knockoutScoringRule = "REGULAR_TI
 
   const markDirty = () => { setSaved(false); setDirty(true) }
 
-  // Whether the current score is a draw (requires penalty winner in knockout)
-  const isDrawn = homeScore === awayScore
+  // Score affiché dans la zone principale = rt si pas d'extra-time, sinon on affiche rt dans le panneau
+  const isDrawnAfterET = hasExtraTime && etHome === etAway
 
   const handleSave = () => {
-    // In knockout, if draw + penalties: store real score in regularTime, penalty score in homeScore/awayScore
-    let finalHome = homeScore
-    let finalAway = awayScore
-    let finalRtHome: number | undefined = undefined
-    let finalRtAway: number | undefined = undefined
+    let finalHome: number
+    let finalAway: number
+    let finalRtHome: number | undefined
+    let finalRtAway: number | undefined
+    let finalEtHome: number | undefined
+    let finalEtAway: number | undefined
 
     if (isKnockout && hasExtraTime) {
-      finalRtHome = homeScore
-      finalRtAway = awayScore
-      if (isDrawn && penaltyWinner) {
-        // Encode penalty winner: store a 1-0 or 0-1 on top of the regularTime score
-        finalHome = homeScore + (penaltyWinner === "home" ? 1 : 0)
-        finalAway = awayScore + (penaltyWinner === "away" ? 1 : 0)
+      finalRtHome = rtHome
+      finalRtAway = rtAway
+      finalEtHome = etHome
+      finalEtAway = etAway
+      if (isDrawnAfterET && penaltyWinner) {
+        // Encode penalty winner: vainqueur TAB = score 120' + 1
+        finalHome = etHome + (penaltyWinner === "home" ? 1 : 0)
+        finalAway = etAway + (penaltyWinner === "away" ? 1 : 0)
       } else {
-        finalHome = homeScore
-        finalAway = awayScore
+        // Victoire nette en prolongation
+        finalHome = etHome
+        finalAway = etAway
       }
+    } else {
+      finalHome = rtHome
+      finalAway = rtAway
     }
 
     startTransition(async () => {
@@ -84,6 +89,8 @@ export function ResultEntry({ match, matchday, knockoutScoringRule = "REGULAR_TI
         awayScore: finalAway,
         regularTimeHome: finalRtHome,
         regularTimeAway: finalRtAway,
+        extraTimeHome: finalEtHome,
+        extraTimeAway: finalEtAway,
         matchday,
       })
 
@@ -92,7 +99,10 @@ export function ResultEntry({ match, matchday, knockoutScoringRule = "REGULAR_TI
       } else {
         setSaved(true)
         setDirty(false)
-        toast.success(`Résultat enregistré : ${homeScore}–${awayScore}`)
+        const scoreLabel = hasExtraTime
+          ? `${rtHome}–${rtAway} (90') · ${etHome}–${etAway} (120')${isDrawnAfterET && penaltyWinner ? ` · T.A.B. ${penaltyWinner === "home" ? match.homeTeam?.name : match.awayTeam?.name}` : ""}`
+          : `${rtHome}–${rtAway}`
+        toast.success(`Résultat enregistré : ${scoreLabel}`)
         onSaved?.()
       }
     })
@@ -115,7 +125,7 @@ export function ResultEntry({ match, matchday, knockoutScoringRule = "REGULAR_TI
         {formatKickoff(match.kickoff)}
       </div>
 
-      {/* Teams & score entry — Score final */}
+      {/* Score à 90' — toujours visible */}
       <div className="flex items-center gap-2">
         <div className="flex-1 flex flex-col items-center gap-1">
           <span className="text-2xl">{match.homeTeam?.flagEmoji ?? "🏆"}</span>
@@ -127,19 +137,17 @@ export function ResultEntry({ match, matchday, knockoutScoringRule = "REGULAR_TI
         <div className="flex flex-col items-center gap-1">
           {isKnockout && (
             <span className="text-[10px] text-[var(--foreground-subtle)] mb-1">
-              {hasExtraTime ? "Score 90'" : "Score (90')"}
+              Score 90&apos;
+              {knockoutScoringRule === "REGULAR_TIME" && (
+                <span className="text-[var(--accent)] ml-1">· pronostics</span>
+              )}
             </span>
           )}
           <div className="flex items-center gap-1">
-            <ScoreStepper value={homeScore} onChange={(v) => { setHomeScore(v); setPenaltyWinner(null); markDirty() }} disabled={isPending || hasExtraTime} />
+            <ScoreStepper value={rtHome} onChange={(v) => { setRtHome(v); markDirty() }} disabled={isPending} />
             <span className="text-[var(--foreground-muted)] font-bold text-xl mx-1">–</span>
-            <ScoreStepper value={awayScore} onChange={(v) => { setAwayScore(v); setPenaltyWinner(null); markDirty() }} disabled={isPending || hasExtraTime} />
+            <ScoreStepper value={rtAway} onChange={(v) => { setRtAway(v); markDirty() }} disabled={isPending} />
           </div>
-          {hasExtraTime && isDrawn && penaltyWinner && (
-            <span className="text-[10px] text-[var(--success)] font-semibold mt-0.5">
-              T.A.B. → {penaltyWinner === "home" ? (match.homeTeam?.name ?? "Dom.") : (match.awayTeam?.name ?? "Ext.")}
-            </span>
-          )}
         </div>
 
         <div className="flex-1 flex flex-col items-center gap-1">
@@ -155,7 +163,17 @@ export function ResultEntry({ match, matchday, knockoutScoringRule = "REGULAR_TI
         <div className="mt-3 flex flex-col gap-2">
           <button
             type="button"
-            onClick={() => { setHasExtraTime(!hasExtraTime); setPenaltyWinner(null); markDirty() }}
+            onClick={() => {
+              const next = !hasExtraTime
+              setHasExtraTime(next)
+              if (next) {
+                // Initialise le score 120' au score 90'
+                setEtHome(rtHome)
+                setEtAway(rtAway)
+              }
+              setPenaltyWinner(null)
+              markDirty()
+            }}
             className={cn(
               "flex items-center gap-2 text-xs font-semibold py-1.5 px-3 rounded-lg transition-all",
               hasExtraTime
@@ -163,37 +181,47 @@ export function ResultEntry({ match, matchday, knockoutScoringRule = "REGULAR_TI
                 : "bg-[var(--surface-elevated)] text-[var(--foreground-muted)] border border-[var(--border)]"
             )}
           >
-            ⏱️ {hasExtraTime ? "Prolongations / T.A.B. activés" : "Match nul → Prolongations / T.A.B. ?"}
+            ⏱️ {hasExtraTime ? "Prolongations activées" : "Match nul → Prolongations ?"}
           </button>
 
           {hasExtraTime && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
-              className="flex flex-col gap-2 p-3 bg-[var(--surface-elevated)] rounded-xl border border-[var(--border)]"
+              className="flex flex-col gap-3 p-3 bg-[var(--surface-elevated)] rounded-xl border border-[var(--border)]"
             >
-              <p className="text-[10px] text-[var(--foreground-muted)] flex items-center gap-1">
-                <Info size={10} />
-                Score à 90&apos; (avant prolongations)
-                {knockoutScoringRule === "REGULAR_TIME" && (
-                  <span className="text-[var(--accent)] ml-1">· Utilisé pour les pronostics</span>
-                )}
-              </p>
-              <div className="flex items-center gap-2 justify-center">
-                <ScoreStepper value={homeScore} onChange={(v) => { setHomeScore(v); setPenaltyWinner(null); markDirty() }} disabled={isPending} />
-                <span className="text-[var(--foreground-muted)] font-bold text-xl mx-1">–</span>
-                <ScoreStepper value={awayScore} onChange={(v) => { setAwayScore(v); setPenaltyWinner(null); markDirty() }} disabled={isPending} />
+              {/* Score à 120' */}
+              <div className="flex flex-col gap-1.5">
+                <p className="text-[10px] text-[var(--foreground-muted)] flex items-center gap-1">
+                  <Info size={10} />
+                  Score à 120&apos; (après prolongations)
+                </p>
+                <div className="flex items-center gap-2 justify-center">
+                  <ScoreStepper
+                    value={etHome}
+                    onChange={(v) => { setEtHome(v); setPenaltyWinner(null); markDirty() }}
+                    disabled={isPending}
+                    min={rtHome}
+                  />
+                  <span className="text-[var(--foreground-muted)] font-bold text-xl mx-1">–</span>
+                  <ScoreStepper
+                    value={etAway}
+                    onChange={(v) => { setEtAway(v); setPenaltyWinner(null); markDirty() }}
+                    disabled={isPending}
+                    min={rtAway}
+                  />
+                </div>
               </div>
 
-              {/* Sélecteur T.A.B. — visible uniquement si score nul après prolongations */}
-              {isDrawn && (
+              {/* T.A.B. uniquement si encore nul à 120' */}
+              {isDrawnAfterET && (
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   className="flex flex-col gap-1.5"
                 >
                   <p className="text-[10px] text-[var(--warning)] font-semibold flex items-center gap-1">
-                    🎯 Match nul — Vainqueur aux tirs au but
+                    🎯 Encore nul — Vainqueur aux tirs au but
                   </p>
                   <div className="flex gap-2">
                     <button
@@ -223,6 +251,13 @@ export function ResultEntry({ match, matchday, knockoutScoringRule = "REGULAR_TI
                   </div>
                 </motion.div>
               )}
+
+              {/* Résumé vainqueur si victoire nette en prolongation */}
+              {!isDrawnAfterET && (etHome !== rtHome || etAway !== rtAway) && (
+                <p className="text-[10px] text-[var(--success)] font-semibold">
+                  ✅ Victoire {etHome > etAway ? (match.homeTeam?.name ?? "Domicile") : (match.awayTeam?.name ?? "Extérieur")} en prolongation
+                </p>
+              )}
             </motion.div>
           )}
         </div>
@@ -231,7 +266,6 @@ export function ResultEntry({ match, matchday, knockoutScoringRule = "REGULAR_TI
       {/* Action buttons */}
       <div className="flex gap-2 mt-4">
         {saved && !dirty ? (
-          /* Match déjà enregistré — afficher état + bouton corriger */
           <div className="flex-1 flex items-center gap-2">
             <div className="flex items-center gap-2 py-2.5 px-3 rounded-xl bg-[var(--success-dim)] text-[var(--success)] border border-[var(--success)]/30 text-sm font-semibold flex-1">
               <CheckCircle size={15} />
@@ -247,7 +281,7 @@ export function ResultEntry({ match, matchday, knockoutScoringRule = "REGULAR_TI
         ) : (
           <button
             onClick={handleSave}
-            disabled={isPending}
+            disabled={isPending || (isKnockout && hasExtraTime && isDrawnAfterET && !penaltyWinner)}
             className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-[var(--accent)] text-[var(--background)] hover:opacity-90 active:scale-95 disabled:opacity-70 transition-all"
           >
             {isPending ? <span className="animate-pulse">Sauvegarde...</span> : dirty ? "✅ Enregistrer la correction" : "Enregistrer"}

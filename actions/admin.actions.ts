@@ -429,6 +429,8 @@ export async function saveMatchResult(data: {
   awayScore: number
   regularTimeHome?: number
   regularTimeAway?: number
+  extraTimeHome?: number
+  extraTimeAway?: number
   matchday?: number
 }) {
   await requireAdmin()
@@ -447,6 +449,8 @@ export async function saveMatchResult(data: {
       awayScore: data.awayScore,
       regularTimeHome: isKnockout ? (data.regularTimeHome ?? null) : null,
       regularTimeAway: isKnockout ? (data.regularTimeAway ?? null) : null,
+      extraTimeHome: isKnockout ? (data.extraTimeHome ?? null) : null,
+      extraTimeAway: isKnockout ? (data.extraTimeAway ?? null) : null,
       status: "FINISHED",
     },
   })

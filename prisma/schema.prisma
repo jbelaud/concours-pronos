@@ -331,6 +331,8 @@ model Match {
   awayScore          Int?
   regularTimeHome    Int?
   regularTimeAway    Int?
+  extraTimeHome      Int?
+  extraTimeAway      Int?
   status             MatchStatus @default(SCHEDULED)
   groupLetter        String?
   knockoutLabel      String?
