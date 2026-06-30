@@ -28,6 +28,7 @@ interface Props {
   groups: GroupWithTeams[]
   userId: string
   tournamentLocked: boolean
+  knockoutScoringRule: "REGULAR_TIME" | "FULL_TIME"
 }
 
 const PHASE_SHORT: Record<string, string> = {
@@ -40,7 +41,7 @@ const PHASE_SHORT: Record<string, string> = {
   FINAL: "Finale",
 }
 
-export function CommunityTab({ matches, communityPredictions, communityBonusPredictions, groups, userId, tournamentLocked }: Props) {
+export function CommunityTab({ matches, communityPredictions, communityBonusPredictions, groups, userId, tournamentLocked, knockoutScoringRule }: Props) {
   const [activeSection, setActiveSection] = useState<"matches" | "bonus" | "stats">("matches")
 
   const communityByMatch = useMemo(() => {
@@ -91,13 +92,13 @@ export function CommunityTab({ matches, communityPredictions, communityBonusPred
       )}
 
       {activeSection === "matches" && (
-        <MatchesSection lockedMatches={lockedMatches} communityByMatch={communityByMatch} userId={userId} />
+        <MatchesSection lockedMatches={lockedMatches} communityByMatch={communityByMatch} userId={userId} knockoutScoringRule={knockoutScoringRule} />
       )}
       {activeSection === "bonus" && hasBonusPreds && (
         <BonusSection predictions={communityBonusPredictions} groups={groups} userId={userId} />
       )}
       {activeSection === "stats" && hasBonusPreds && (
-        <StatsSection predictions={communityBonusPredictions} lockedMatches={lockedMatches} communityByMatch={communityByMatch} groups={groups} userId={userId} />
+        <StatsSection predictions={communityBonusPredictions} lockedMatches={lockedMatches} communityByMatch={communityByMatch} groups={groups} userId={userId} knockoutScoringRule={knockoutScoringRule} />
       )}
     </div>
   )
@@ -151,10 +152,12 @@ function MatchesSection({
   lockedMatches,
   communityByMatch,
   userId,
+  knockoutScoringRule,
 }: {
   lockedMatches: MatchWithPrediction[]
   communityByMatch: Record<string, CommunityPrediction[]>
   userId: string
+  knockoutScoringRule: "REGULAR_TIME" | "FULL_TIME"
 }) {
   if (lockedMatches.length === 0) {
     return (
@@ -192,6 +195,7 @@ function MatchesSection({
                 match={match}
                 preds={communityByMatch[match.id] ?? []}
                 userId={userId}
+                knockoutScoringRule={knockoutScoringRule}
               />
             ))}
           </Accordion>
@@ -205,17 +209,30 @@ function MatchCommunityCard({
   match,
   preds,
   userId,
+  knockoutScoringRule,
 }: {
   match: MatchWithPrediction
   preds: CommunityPrediction[]
   userId: string
+  knockoutScoringRule: "REGULAR_TIME" | "FULL_TIME"
 }) {
   const [modalOpen, setModalOpen] = useState(false)
 
+  // Score de référence pour l'évaluation des pronostics
+  const isKnockout = match.phase !== "GROUP"
+  const refHome =
+    isKnockout && knockoutScoringRule === "REGULAR_TIME" && match.regularTimeHome !== null
+      ? match.regularTimeHome
+      : match.homeScore
+  const refAway =
+    isKnockout && knockoutScoringRule === "REGULAR_TIME" && match.regularTimeAway !== null
+      ? match.regularTimeAway
+      : match.awayScore
+
   const realResult =
-    match.status === "FINISHED" && match.homeScore !== null && match.awayScore !== null
-      ? match.homeScore > match.awayScore ? "home"
-      : match.homeScore === match.awayScore ? "draw"
+    match.status === "FINISHED" && refHome !== null && refAway !== null
+      ? refHome > refAway ? "home"
+      : refHome === refAway ? "draw"
       : "away"
       : null
 
@@ -300,7 +317,7 @@ function MatchCommunityCard({
         {/* Top scores */}
         <div className="border-t border-[var(--border)] px-3 py-2 flex flex-col gap-1.5">
           {topScores.map((s, i) => {
-            const isExact = match.status === "FINISHED" && match.homeScore === s.homeScore && match.awayScore === s.awayScore
+            const isExact = match.status === "FINISHED" && refHome === s.homeScore && refAway === s.awayScore
             const pct = Math.round((s.count / total) * 100)
             return (
               <div key={`${s.homeScore}-${s.awayScore}`} className="flex items-center gap-2">
@@ -354,6 +371,8 @@ function MatchCommunityCard({
           match={match}
           preds={preds}
           realResult={realResult}
+          refHome={refHome}
+          refAway={refAway}
           userId={userId}
           onClose={() => setModalOpen(false)}
         />
@@ -366,12 +385,16 @@ function PredictionsModal({
   match,
   preds,
   realResult,
+  refHome,
+  refAway,
   userId,
   onClose,
 }: {
   match: MatchWithPrediction
   preds: CommunityPrediction[]
   realResult: "home" | "draw" | "away" | null
+  refHome: number | null
+  refAway: number | null
   userId: string
   onClose: () => void
 }) {
@@ -381,7 +404,7 @@ function PredictionsModal({
     if (b.user.id === userId) return 1
     // Puis exacts, puis corrects, puis autres
     const scoreOf = (p: CommunityPrediction) => {
-      if (match.status === "FINISHED" && match.homeScore === p.homeScore && match.awayScore === p.awayScore) return 2
+      if (match.status === "FINISHED" && refHome === p.homeScore && refAway === p.awayScore) return 2
       const r = p.homeScore > p.awayScore ? "home" : p.homeScore === p.awayScore ? "draw" : "away"
       if (realResult === r) return 1
       return 0
@@ -420,7 +443,7 @@ function PredictionsModal({
           {sorted.map((p) => {
             const result = p.homeScore > p.awayScore ? "home" : p.homeScore === p.awayScore ? "draw" : "away"
             const isMe = p.user.id === userId
-            const isExact = match.status === "FINISHED" && match.homeScore === p.homeScore && match.awayScore === p.awayScore
+            const isExact = match.status === "FINISHED" && refHome === p.homeScore && refAway === p.awayScore
             const isCorrect = match.status === "FINISHED" && realResult === result && !isExact
 
             return (
@@ -684,12 +707,14 @@ function StatsSection({
   communityByMatch,
   groups,
   userId,
+  knockoutScoringRule,
 }: {
   predictions: CommunityBonusPrediction[]
   lockedMatches: MatchWithPrediction[]
   communityByMatch: Record<string, CommunityPrediction[]>
   groups: GroupWithTeams[]
   userId: string
+  knockoutScoringRule: "REGULAR_TIME" | "FULL_TIME"
 }) {
   const total = predictions.length
   const myPred = predictions.find((p) => p.user.id === userId)
@@ -720,14 +745,22 @@ function StatsSection({
   // Stats matchs : taux de réussite global
   const finishedMatches = lockedMatches.filter((m) => m.status === "FINISHED" && m.homeScore !== null)
   const totalPreds = finishedMatches.reduce((sum, m) => sum + (communityByMatch[m.id]?.length ?? 0), 0)
+  const getRef = (m: MatchWithPrediction) => {
+    const isKo = m.phase !== "GROUP"
+    const rH = isKo && knockoutScoringRule === "REGULAR_TIME" && m.regularTimeHome !== null ? m.regularTimeHome : m.homeScore!
+    const rA = isKo && knockoutScoringRule === "REGULAR_TIME" && m.regularTimeAway !== null ? m.regularTimeAway : m.awayScore!
+    return { rH, rA }
+  }
   const exactPreds = finishedMatches.reduce((sum, m) => {
-    return sum + (communityByMatch[m.id] ?? []).filter((p) => p.homeScore === m.homeScore && p.awayScore === m.awayScore).length
+    const { rH, rA } = getRef(m)
+    return sum + (communityByMatch[m.id] ?? []).filter((p) => p.homeScore === rH && p.awayScore === rA).length
   }, 0)
   const correctPreds = finishedMatches.reduce((sum, m) => {
-    const realRes = m.homeScore! > m.awayScore! ? "home" : m.homeScore! === m.awayScore! ? "draw" : "away"
+    const { rH, rA } = getRef(m)
+    const realRes = rH > rA ? "home" : rH === rA ? "draw" : "away"
     return sum + (communityByMatch[m.id] ?? []).filter((p) => {
       const pr = p.homeScore > p.awayScore ? "home" : p.homeScore === p.awayScore ? "draw" : "away"
-      return pr === realRes && !(p.homeScore === m.homeScore && p.awayScore === m.awayScore)
+      return pr === realRes && !(p.homeScore === rH && p.awayScore === rA)
     }).length
   }, 0)
   const exactPct = totalPreds > 0 ? Math.round((exactPreds / totalPreds) * 100) : 0

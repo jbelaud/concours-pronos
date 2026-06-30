@@ -198,6 +198,7 @@ export function PredictionHub(props: Props) {
                 groups={props.groups}
                 userId={props.userId}
                 tournamentLocked={props.tournamentLocked}
+                knockoutScoringRule={props.knockoutScoringRule}
               />
             )}
           </motion.div>
