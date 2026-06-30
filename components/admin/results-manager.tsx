@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 import { CalendarDays, ChevronDown } from "lucide-react"
 import type { MatchWithTeams, Team, MatchPhase } from "@/types"
 
-type Match = MatchWithTeams & { regularTimeHome: number | null; regularTimeAway: number | null }
+type Match = MatchWithTeams & { regularTimeHome: number | null; regularTimeAway: number | null; extraTimeHome: number | null; extraTimeAway: number | null }
 
 interface Props {
   matches: Match[]
@@ -106,8 +106,14 @@ export function ResultsManager({ matches, allTeams, matchday, knockoutScoringRul
 
   const hasGroups = groupMatches.length > 0
 
+  // Ouvrir directement sur Phases Finales s'il y a des matchs knockout en attente
+  const hasKnockoutPending = useMemo(
+    () => knockoutMatches.some((m) => m.homeTeamId && m.status !== "FINISHED"),
+    [knockoutMatches]
+  )
+
   type Tab = "groups" | "knockout"
-  const [tab, setTab] = useState<Tab>(hasGroups ? "groups" : "knockout")
+  const [tab, setTab] = useState<Tab>(hasKnockoutPending ? "knockout" : hasGroups ? "groups" : "knockout")
 
   // --- Onglet POULES ---
   const groupLetters = useMemo(() => {
@@ -302,15 +308,21 @@ export function ResultsManager({ matches, allTeams, matchday, knockoutScoringRul
               </div>
 
               <div className="flex flex-col gap-3">
-                {knockoutMatchesForPhase.map((match) => (
-                  <KnockoutMatchCard
-                    key={match.id}
-                    match={match}
-                    allTeams={allTeams}
-                    matchday={matchday}
-                    knockoutScoringRule={knockoutScoringRule}
-                  />
-                ))}
+                {(() => {
+                  const firstPendingId = knockoutMatchesForPhase.find(
+                    (m) => m.homeTeamId && m.awayTeamId && m.status !== "FINISHED"
+                  )?.id ?? null
+                  return knockoutMatchesForPhase.map((match) => (
+                    <KnockoutMatchCard
+                      key={match.id}
+                      match={match}
+                      allTeams={allTeams}
+                      matchday={matchday}
+                      knockoutScoringRule={knockoutScoringRule}
+                      defaultOpen={match.id === firstPendingId}
+                    />
+                  ))
+                })()}
                 {knockoutMatchesForPhase.length === 0 && (
                   <div className="text-center py-8 text-[var(--foreground-muted)] text-sm">Aucun match pour cette phase.</div>
                 )}
@@ -324,24 +336,76 @@ export function ResultsManager({ matches, allTeams, matchday, knockoutScoringRul
 }
 
 function KnockoutMatchCard({
-  match, allTeams, matchday, knockoutScoringRule,
+  match, allTeams, matchday, knockoutScoringRule, defaultOpen,
 }: {
   match: Match
   allTeams: Team[]
   matchday: number
   knockoutScoringRule: "REGULAR_TIME" | "FULL_TIME"
+  defaultOpen: boolean
 }) {
   const hasTeams = !!match.homeTeamId && !!match.awayTeamId
+  const [open, setOpen] = useState(defaultOpen)
+
+  const homeLabel = match.homeTeam?.name ?? (match.knockoutLabel ? match.knockoutLabel.split(" / ")[0] : "?")
+  const awayLabel = match.awayTeam?.name ?? (match.knockoutLabel ? match.knockoutLabel.split(" / ")[1] : "?")
+  const isFinished = match.status === "FINISHED"
 
   return (
-    <div className="flex flex-col gap-2">
-      <KnockoutManager match={match} allTeams={allTeams} />
-      {hasTeams && (
-        <div className="pl-3 border-l-2 border-[var(--accent)]/20">
-          <p className="text-[10px] text-[var(--foreground-subtle)] uppercase tracking-wide mb-1.5">Résultat</p>
-          <ResultEntry match={match} matchday={matchday} knockoutScoringRule={knockoutScoringRule} />
+    <div className="surface-card overflow-hidden">
+      {/* Header accordéon */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-3 p-3 text-left hover:bg-[var(--surface-elevated)] transition-colors"
+      >
+        <div className="flex-1 flex items-center gap-2 min-w-0">
+          <span className="text-base">{match.homeTeam?.flagEmoji ?? "🏆"}</span>
+          <span className="text-xs font-bold truncate">{homeLabel}</span>
+          <span className="text-[var(--foreground-muted)] text-xs font-bold mx-1">vs</span>
+          <span className="text-xs font-bold truncate">{awayLabel}</span>
+          <span className="text-base">{match.awayTeam?.flagEmoji ?? "🏆"}</span>
         </div>
-      )}
+        <div className="flex items-center gap-2 shrink-0">
+          {isFinished ? (
+            <span className="text-xs font-black tabular-nums text-[var(--success)]">
+              {match.regularTimeHome ?? match.homeScore} – {match.regularTimeAway ?? match.awayScore}
+            </span>
+          ) : hasTeams ? (
+            <span className="text-[10px] font-semibold text-[var(--warning)] bg-[var(--warning)]/10 px-2 py-0.5 rounded-full">
+              À saisir
+            </span>
+          ) : (
+            <span className="text-[10px] font-semibold text-[var(--foreground-subtle)] bg-[var(--surface-elevated)] px-2 py-0.5 rounded-full">
+              En attente
+            </span>
+          )}
+          <ChevronDown size={14} className={cn("text-[var(--foreground-muted)] transition-transform duration-200", open && "rotate-180")} />
+        </div>
+      </button>
+
+      {/* Contenu accordéon */}
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="px-3 pb-3 flex flex-col gap-2 border-t border-[var(--border)]">
+              <KnockoutManager match={match} allTeams={allTeams} />
+              {hasTeams && (
+                <div className="pl-3 border-l-2 border-[var(--accent)]/20">
+                  <p className="text-[10px] text-[var(--foreground-subtle)] uppercase tracking-wide mb-1.5">Résultat</p>
+                  <ResultEntry match={match} matchday={matchday} knockoutScoringRule={knockoutScoringRule} />
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
