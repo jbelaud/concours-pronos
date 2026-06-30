@@ -188,6 +188,7 @@ export function PredictionHub(props: Props) {
                 myBonusPred={props.myBonusPred}
                 scorerCandidates={props.scorerCandidates}
                 validatedGroupBonus={props.validatedGroupBonus}
+                knockoutScoringRule={props.knockoutScoringRule}
               />
             )}
             {activeTab === "community" && (

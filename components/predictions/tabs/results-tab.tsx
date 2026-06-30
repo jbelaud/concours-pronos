@@ -45,6 +45,7 @@ interface Props {
   myBonusPred: BonusPred | null
   scorerCandidates: ScorerCandidate[]
   validatedGroupBonus: Record<string, { firstTeamCode: string; secondTeamCode: string }>
+  knockoutScoringRule: "REGULAR_TIME" | "FULL_TIME"
 }
 
 // Accordion générique — fermé par défaut
@@ -96,7 +97,7 @@ function Accordion({
   )
 }
 
-export function ResultsTab({ matches, settings, myBonusPred, scorerCandidates, validatedGroupBonus }: Props) {
+export function ResultsTab({ matches, settings, myBonusPred, scorerCandidates, validatedGroupBonus, knockoutScoringRule }: Props) {
   const finishedWithPred = useMemo(() => {
     return matches
       .filter((m) => m.status === "FINISHED" && m.homeScore !== null && m.homeTeamId)
@@ -212,7 +213,7 @@ export function ResultsTab({ matches, settings, myBonusPred, scorerCandidates, v
               <span className="text-[10px] text-[var(--foreground-subtle)]">Raté : {phaseMatches.length - phaseExact - phaseCorrect}</span>
             </div>
             {phaseMatches.map((match) => (
-              <ResultMatchCard key={match.id} match={match} />
+              <ResultMatchCard key={match.id} match={match} knockoutScoringRule={knockoutScoringRule} />
             ))}
           </Accordion>
         )
@@ -226,7 +227,7 @@ export function ResultsTab({ matches, settings, myBonusPred, scorerCandidates, v
           badgeColor="muted"
         >
           {withoutPred.map((match) => (
-            <ResultMatchCard key={match.id} match={match} />
+            <ResultMatchCard key={match.id} match={match} knockoutScoringRule={knockoutScoringRule} />
           ))}
         </Accordion>
       )}
@@ -337,13 +338,19 @@ function ScoreLegend({ settings }: { settings: Props["settings"] }) {
   )
 }
 
-function ResultMatchCard({ match }: { match: MatchWithPrediction }) {
+function ResultMatchCard({ match, knockoutScoringRule }: { match: MatchWithPrediction; knockoutScoringRule: "REGULAR_TIME" | "FULL_TIME" }) {
   const pred = match.prediction
   const hasResult = match.homeScore !== null && match.awayScore !== null
 
+  const isKnockout = match.phase !== "GROUP"
+  const refHome = isKnockout && knockoutScoringRule === "REGULAR_TIME" && match.regularTimeHome !== null
+    ? match.regularTimeHome : match.homeScore
+  const refAway = isKnockout && knockoutScoringRule === "REGULAR_TIME" && match.regularTimeAway !== null
+    ? match.regularTimeAway : match.awayScore
+
   const realResult = hasResult
-    ? match.homeScore! > match.awayScore! ? "home"
-    : match.homeScore! === match.awayScore! ? "draw"
+    ? refHome! > refAway! ? "home"
+    : refHome! === refAway! ? "draw"
     : "away"
     : null
 
