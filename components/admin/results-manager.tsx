@@ -351,10 +351,13 @@ function KnockoutMatchCard({
   const awayLabel = match.awayTeam?.name ?? (match.knockoutLabel ? match.knockoutLabel.split(" / ")[1] : "?")
   const isFinished = match.status === "FINISHED"
 
-  // TAB : prolongations jouées (regularTimeHome !== null) ET score RT nul ET score final différent (vainqueur a +1 encodé)
+  // TAB : prolongations jouées ET pas de buts en prolongations (extraTime = regularTime) ET score final différent (vainqueur +1)
+  // Si extraTimeHome/Away existent et diffèrent du RT → victoire en prolongations, pas un TAB
+  const etHome = match.extraTimeHome ?? match.regularTimeHome
+  const etAway = match.extraTimeAway ?? match.regularTimeAway
   const isPenalties = isFinished && match.regularTimeHome !== null && match.regularTimeAway !== null
     && match.homeScore !== null && match.awayScore !== null
-    && match.regularTimeHome === match.regularTimeAway
+    && etHome === etAway
     && match.homeScore !== match.awayScore
   const tabWinner: "home" | "away" | null = isPenalties
     ? (match.homeScore! > match.awayScore! ? "home" : "away")

@@ -233,10 +233,12 @@ function MatchCommunityCard({
   const displayHome = isKnockout && match.regularTimeHome !== null ? (match.extraTimeHome ?? match.regularTimeHome) : match.homeScore
   const displayAway = isKnockout && match.regularTimeAway !== null ? (match.extraTimeAway ?? match.regularTimeAway) : match.awayScore
 
-  // Match décidé aux tirs au but : RT nul + score final différent (vainqueur +1 encodé)
+  // TAB : prolongations jouées ET score à 120' nul ET score final différent (vainqueur +1 encodé)
+  const etHome = isKnockout ? (match.extraTimeHome ?? match.regularTimeHome) : null
+  const etAway = isKnockout ? (match.extraTimeAway ?? match.regularTimeAway) : null
   const isPenalties = isKnockout && match.regularTimeHome !== null && match.regularTimeAway !== null
     && match.homeScore !== null && match.awayScore !== null
-    && match.regularTimeHome === match.regularTimeAway
+    && etHome === etAway
     && match.homeScore !== match.awayScore
   const tabWinner: "home" | "away" | null = isPenalties
     ? (match.homeScore! > match.awayScore! ? "home" : "away")
