@@ -176,7 +176,11 @@ export function MatchesTab({ matches, contestId, communityPredictions, knockoutS
       if (groupFilter === "day") return matches.filter((m) => m.phase === "GROUP" && new Date(m.kickoff).toISOString().split("T")[0] === activeDay)
       return matches.filter((m) => m.phase === "GROUP" && m.groupLetter === groupFilter)
     }
-    return matches.filter((m) => m.phase === activeKnockoutPhase)
+    // Phases finales : matchs passés du plus récent au plus ancien, puis futurs/non verrouillés à la fin
+    const phaseMatches = matches.filter((m) => m.phase === activeKnockoutPhase)
+    const past = phaseMatches.filter((m) => m.isLocked).sort((a, b) => new Date(b.kickoff).getTime() - new Date(a.kickoff).getTime())
+    const future = phaseMatches.filter((m) => !m.isLocked).sort((a, b) => new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime())
+    return [...future, ...past]
   }, [matches, mainTab, groupFilter, activeDay, activeKnockoutPhase])
 
   return (

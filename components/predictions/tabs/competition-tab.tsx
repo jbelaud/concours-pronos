@@ -8,10 +8,14 @@ interface KnockoutMatch {
   matchNumber: number
   phase: string
   knockoutLabel: string | null
-  homeTeam: { name: string; flagEmoji: string | null } | null
-  awayTeam: { name: string; flagEmoji: string | null } | null
+  homeTeam: { name: string; flagEmoji: string | null; code: string } | null
+  awayTeam: { name: string; flagEmoji: string | null; code: string } | null
   homeScore: number | null
   awayScore: number | null
+  regularTimeHome: number | null
+  regularTimeAway: number | null
+  extraTimeHome: number | null
+  extraTimeAway: number | null
   status: string
 }
 
@@ -37,7 +41,38 @@ export function CompetitionTab({ allGroupStandings, bestThirds, roundOf32Matchup
 
   const resolvedCount = roundOf32Matchups.filter((m) => m.homeTeamCode && m.awayTeamCode).length
   const allTeams = allGroupStandings.flatMap((g) => g.teams)
-  const teamsWithMatches = allTeams.filter((t) => t.played > 0)
+
+  // Additionner les buts des matchs knockout (score à 90' + prolongations, pas le TAB encodé)
+  const knockoutGoalsByCode: Record<string, { goalsFor: number; goalsAgainst: number; played: number }> = {}
+  for (const m of knockoutMatches) {
+    if (m.status !== "FINISHED" || !m.homeTeam || !m.awayTeam) continue
+    // Score réel = extraTime si prolongations, sinon regularTime si défini, sinon homeScore/awayScore
+    const hGoals = m.extraTimeHome ?? m.regularTimeHome ?? m.homeScore ?? 0
+    const aGoals = m.extraTimeAway ?? m.regularTimeAway ?? m.awayScore ?? 0
+    const hCode = m.homeTeam.code
+    const aCode = m.awayTeam.code
+    if (!knockoutGoalsByCode[hCode]) knockoutGoalsByCode[hCode] = { goalsFor: 0, goalsAgainst: 0, played: 0 }
+    if (!knockoutGoalsByCode[aCode]) knockoutGoalsByCode[aCode] = { goalsFor: 0, goalsAgainst: 0, played: 0 }
+    knockoutGoalsByCode[hCode].goalsFor += hGoals
+    knockoutGoalsByCode[hCode].goalsAgainst += aGoals
+    knockoutGoalsByCode[hCode].played += 1
+    knockoutGoalsByCode[aCode].goalsFor += aGoals
+    knockoutGoalsByCode[aCode].goalsAgainst += hGoals
+    knockoutGoalsByCode[aCode].played += 1
+  }
+
+  const teamsWithMatches = allTeams
+    .map((t) => {
+      const ko = knockoutGoalsByCode[t.code]
+      if (!ko) return t
+      return {
+        ...t,
+        goalsFor: t.goalsFor + ko.goalsFor,
+        goalsAgainst: t.goalsAgainst + ko.goalsAgainst,
+        played: t.played + ko.played,
+      }
+    })
+    .filter((t) => t.played > 0)
 
   // Group knockout matches by phase
   const knockoutByPhase = knockoutMatches.reduce<Record<string, KnockoutMatch[]>>((acc, m) => {

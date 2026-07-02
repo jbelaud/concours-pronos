@@ -100,10 +100,14 @@ export default async function CompetitionPage({
           matchNumber: m.matchNumber,
           phase: m.phase,
           knockoutLabel: m.knockoutLabel,
-          homeTeam: m.homeTeam ? { name: m.homeTeam.name, flagEmoji: m.homeTeam.flagEmoji } : null,
-          awayTeam: m.awayTeam ? { name: m.awayTeam.name, flagEmoji: m.awayTeam.flagEmoji } : null,
+          homeTeam: m.homeTeam ? { name: m.homeTeam.name, flagEmoji: m.homeTeam.flagEmoji, code: m.homeTeam.code } : null,
+          awayTeam: m.awayTeam ? { name: m.awayTeam.name, flagEmoji: m.awayTeam.flagEmoji, code: m.awayTeam.code } : null,
           homeScore: m.homeScore,
           awayScore: m.awayScore,
+          regularTimeHome: m.regularTimeHome,
+          regularTimeAway: m.regularTimeAway,
+          extraTimeHome: m.extraTimeHome,
+          extraTimeAway: m.extraTimeAway,
           status: m.status,
         }))}
       />
