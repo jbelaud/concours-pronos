@@ -352,8 +352,11 @@ function ResultMatchCard({ match, knockoutScoringRule }: { match: MatchWithPredi
   const displayHome = isKnockout && match.regularTimeHome !== null ? (match.extraTimeHome ?? match.regularTimeHome) : match.homeScore
   const displayAway = isKnockout && match.regularTimeAway !== null ? (match.extraTimeAway ?? match.regularTimeAway) : match.awayScore
 
-  // Match décidé aux tirs au but
-  const isPenalties = isKnockout && match.regularTimeHome !== null && match.homeScore !== null && match.awayScore !== null && match.homeScore !== match.awayScore
+  // Match décidé aux tirs au but : RT nul + score final différent (vainqueur +1 encodé)
+  const isPenalties = isKnockout && match.regularTimeHome !== null && match.regularTimeAway !== null
+    && match.homeScore !== null && match.awayScore !== null
+    && match.regularTimeHome === match.regularTimeAway
+    && match.homeScore !== match.awayScore
   const tabWinner: "home" | "away" | null = isPenalties
     ? (match.homeScore! > match.awayScore! ? "home" : "away")
     : null

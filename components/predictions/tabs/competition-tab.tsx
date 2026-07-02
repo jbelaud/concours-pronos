@@ -414,7 +414,9 @@ function BracketSection({
     if (m.status !== "FINISHED" || m.homeScore === null || m.awayScore === null) return undefined
     const h = m.extraTimeHome ?? m.regularTimeHome ?? m.homeScore
     const a = m.extraTimeAway ?? m.regularTimeAway ?? m.awayScore
-    const isPenalties = m.regularTimeHome !== null && m.homeScore !== m.awayScore
+    const isPenalties = m.regularTimeHome !== null && m.regularTimeAway !== null
+      && m.regularTimeHome === m.regularTimeAway
+      && m.homeScore !== m.awayScore
     const tabWinner: "home" | "away" | null = isPenalties
       ? (m.homeScore > m.awayScore ? "home" : "away")
       : null
