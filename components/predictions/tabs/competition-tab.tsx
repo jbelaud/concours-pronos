@@ -403,15 +403,29 @@ function BracketSection({
   allTeams: TeamStanding[]
 }) {
   const teamByCode = Object.fromEntries(allTeams.map((t) => [t.code, t]))
+  // Index des matchs ROUND_OF_32 réels par numéro de match
+  const ro32ByNumber = Object.fromEntries(
+    (knockoutByPhase["ROUND_OF_32"] ?? []).map((m) => [m.matchNumber, m])
+  )
+
+  // Retourne le score affiché d'un match knockout (vrai score, pas le TAB encodé)
+  const realScore = (m: KnockoutMatch): string | undefined => {
+    if (m.status !== "FINISHED" || m.homeScore === null || m.awayScore === null) return undefined
+    const h = m.extraTimeHome ?? m.regularTimeHome ?? m.homeScore
+    const a = m.extraTimeAway ?? m.regularTimeAway ?? m.awayScore
+    return `${h} – ${a}`
+  }
 
   return (
     <div className="flex flex-col gap-3">
       {/* 1/16 */}
       <PhaseCard title="1/16 de finale" subtitle="Mis à jour en temps réel" defaultOpen={false}>
         {roundOf32Matchups.map(({ matchNumber, homeTeamCode, awayTeamCode, homeLabel, awayLabel }) => {
-          const isResolved = !!homeTeamCode && !!awayTeamCode
-          const homeTeam = homeTeamCode ? teamByCode[homeTeamCode] : null
-          const awayTeam = awayTeamCode ? teamByCode[awayTeamCode] : null
+          // Priorité aux données réelles de la DB si le match est assigné
+          const dbMatch = ro32ByNumber[matchNumber]
+          const homeTeam = dbMatch?.homeTeam ?? (homeTeamCode ? teamByCode[homeTeamCode] : null)
+          const awayTeam = dbMatch?.awayTeam ?? (awayTeamCode ? teamByCode[awayTeamCode] : null)
+          const isResolved = !!(homeTeam && awayTeam)
           return (
             <BracketRow
               key={matchNumber}
@@ -419,29 +433,27 @@ function BracketSection({
               homeDisplay={homeTeam ? `${homeTeam.flagEmoji ?? ""} ${homeTeam.name}` : homeLabel}
               awayDisplay={awayTeam ? `${awayTeam.flagEmoji ?? ""} ${awayTeam.name}` : awayLabel}
               isResolved={isResolved}
+              score={dbMatch ? realScore(dbMatch) : undefined}
             />
           )
         })}
       </PhaseCard>
 
-      {/* 1/8 and beyond — only shown when teams are being resolved */}
+      {/* 1/8 and beyond */}
       {["ROUND_OF_16", "QUARTER_FINAL", "SEMI_FINAL", "THIRD_PLACE", "FINAL"].map((phase) => {
         const phaseMatches = knockoutByPhase[phase]
         if (!phaseMatches?.length) return null
-        const anyResolved = phaseMatches.some((m) => m.homeTeam || m.awayTeam)
 
         return (
           <PhaseCard key={phase} title={PHASE_LABEL[phase] ?? phase}>
             {phaseMatches.map((m) => {
               const isResolved = !!m.homeTeam && !!m.awayTeam
-              const isFinished = m.status === "FINISHED"
               const homeDisplay = m.homeTeam
                 ? `${m.homeTeam.flagEmoji ?? ""} ${m.homeTeam.name}`
                 : m.knockoutLabel?.split(" vs ")[0]?.replace(/^.*?-\s*/, "") ?? "?"
               const awayDisplay = m.awayTeam
                 ? `${m.awayTeam.flagEmoji ?? ""} ${m.awayTeam.name}`
                 : m.knockoutLabel?.split(" vs ")[1] ?? "?"
-
               return (
                 <BracketRow
                   key={m.matchNumber}
@@ -449,9 +461,7 @@ function BracketSection({
                   homeDisplay={homeDisplay}
                   awayDisplay={awayDisplay}
                   isResolved={isResolved}
-                  score={isFinished && m.homeScore !== null && m.awayScore !== null
-                    ? `${m.homeScore} – ${m.awayScore}`
-                    : undefined}
+                  score={realScore(m)}
                 />
               )
             })}
