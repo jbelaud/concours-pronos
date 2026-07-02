@@ -53,7 +53,7 @@ export default async function CompetitionPage({
     db.match.findMany({
       where: {
         contestId: contest.id,
-        phase: { in: ["ROUND_OF_16", "QUARTER_FINAL", "SEMI_FINAL", "THIRD_PLACE", "FINAL"] },
+        phase: { in: ["ROUND_OF_32", "ROUND_OF_16", "QUARTER_FINAL", "SEMI_FINAL", "THIRD_PLACE", "FINAL"] },
       },
       include: { homeTeam: true, awayTeam: true },
       orderBy: { matchNumber: "asc" },
