@@ -229,6 +229,16 @@ function MatchCommunityCard({
       ? match.regularTimeAway
       : match.awayScore
 
+  // Score à afficher (sans le +1 TAB encodé)
+  const displayHome = isKnockout && match.regularTimeHome !== null ? (match.extraTimeHome ?? match.regularTimeHome) : match.homeScore
+  const displayAway = isKnockout && match.regularTimeAway !== null ? (match.extraTimeAway ?? match.regularTimeAway) : match.awayScore
+
+  // Match décidé aux tirs au but
+  const isPenalties = isKnockout && match.regularTimeHome !== null && match.homeScore !== null && match.awayScore !== null && match.homeScore !== match.awayScore
+  const tabWinner: "home" | "away" | null = isPenalties
+    ? (match.homeScore! > match.awayScore! ? "home" : "away")
+    : null
+
   const realResult =
     match.status === "FINISHED" && refHome !== null && refAway !== null
       ? refHome > refAway ? "home"
@@ -274,7 +284,7 @@ function MatchCommunityCard({
           </span>
           {match.status === "FINISHED" && match.homeScore !== null ? (
             <span className="text-sm font-black text-[var(--foreground)] tabular-nums px-2">
-              {match.homeScore} – {match.awayScore}
+              {displayHome} – {displayAway}{tabWinner ? " *" : ""}
             </span>
           ) : (
             <span className="text-[11px] text-[var(--foreground-subtle)] px-2">vs</span>
@@ -373,6 +383,9 @@ function MatchCommunityCard({
           realResult={realResult}
           refHome={refHome}
           refAway={refAway}
+          displayHome={displayHome}
+          displayAway={displayAway}
+          tabWinner={tabWinner}
           userId={userId}
           onClose={() => setModalOpen(false)}
         />
@@ -387,6 +400,9 @@ function PredictionsModal({
   realResult,
   refHome,
   refAway,
+  displayHome,
+  displayAway,
+  tabWinner,
   userId,
   onClose,
 }: {
@@ -395,6 +411,9 @@ function PredictionsModal({
   realResult: "home" | "draw" | "away" | null
   refHome: number | null
   refAway: number | null
+  displayHome: number | null
+  displayAway: number | null
+  tabWinner: "home" | "away" | null
   userId: string
   onClose: () => void
 }) {
@@ -429,9 +448,16 @@ function PredictionsModal({
         {/* Header */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border)]">
           <span className="text-base">{match.homeTeam?.flagEmoji}</span>
-          <span className="flex-1 text-sm font-bold text-[var(--foreground)]">
-            {match.homeTeam?.name} vs {match.awayTeam?.name}
-          </span>
+          <div className="flex-1 flex flex-col min-w-0">
+            <span className="text-sm font-bold text-[var(--foreground)] truncate">
+              {match.homeTeam?.name}{tabWinner === "home" ? " *" : ""} vs {match.awayTeam?.name}{tabWinner === "away" ? " *" : ""}
+            </span>
+            {match.status === "FINISHED" && displayHome !== null && (
+              <span className="text-[11px] text-[var(--foreground-muted)]">
+                Score : {displayHome} – {displayAway}{tabWinner ? " (TAB)" : ""}
+              </span>
+            )}
+          </div>
           <span className="text-base">{match.awayTeam?.flagEmoji}</span>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-[var(--surface-elevated)]">
             <X size={16} className="text-[var(--foreground-muted)]" />

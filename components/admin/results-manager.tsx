@@ -351,6 +351,15 @@ function KnockoutMatchCard({
   const awayLabel = match.awayTeam?.name ?? (match.knockoutLabel ? match.knockoutLabel.split(" / ")[1] : "?")
   const isFinished = match.status === "FINISHED"
 
+  // TAB : regularTimeHome !== null et homeScore !== awayScore (le vainqueur a +1)
+  const isPenalties = isFinished && match.regularTimeHome !== null && match.homeScore !== null && match.awayScore !== null && match.homeScore !== match.awayScore
+  const tabWinner: "home" | "away" | null = isPenalties
+    ? (match.homeScore! > match.awayScore! ? "home" : "away")
+    : null
+  // Score 90' (référence pronostic) à afficher dans le header
+  const headerScoreHome = match.regularTimeHome ?? match.homeScore
+  const headerScoreAway = match.regularTimeAway ?? match.awayScore
+
   return (
     <div className="surface-card overflow-hidden">
       {/* Header accordéon */}
@@ -361,15 +370,15 @@ function KnockoutMatchCard({
       >
         <div className="flex-1 flex items-center gap-2 min-w-0">
           <span className="text-base">{match.homeTeam?.flagEmoji ?? "🏆"}</span>
-          <span className="text-xs font-bold truncate">{homeLabel}</span>
+          <span className="text-xs font-bold truncate">{homeLabel}{tabWinner === "home" ? " *" : ""}</span>
           <span className="text-[var(--foreground-muted)] text-xs font-bold mx-1">vs</span>
-          <span className="text-xs font-bold truncate">{awayLabel}</span>
+          <span className="text-xs font-bold truncate">{tabWinner === "away" ? "* " : ""}{awayLabel}</span>
           <span className="text-base">{match.awayTeam?.flagEmoji ?? "🏆"}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {isFinished ? (
             <span className="text-xs font-black tabular-nums text-[var(--success)]">
-              {match.regularTimeHome ?? match.homeScore} – {match.regularTimeAway ?? match.awayScore}
+              {headerScoreHome} – {headerScoreAway}{isPenalties ? " TAB" : ""}
             </span>
           ) : hasTeams ? (
             <span className="text-[10px] font-semibold text-[var(--warning)] bg-[var(--warning)]/10 px-2 py-0.5 rounded-full">

@@ -409,11 +409,16 @@ function BracketSection({
   )
 
   // Retourne le score affiché d'un match knockout (vrai score, pas le TAB encodé)
-  const realScore = (m: KnockoutMatch): string | undefined => {
+  // Quand le match s'est décidé aux tirs au but : regularTimeHome !== null et homeScore !== awayScore
+  const realScore = (m: KnockoutMatch): { score: string; tabWinner: "home" | "away" | null } | undefined => {
     if (m.status !== "FINISHED" || m.homeScore === null || m.awayScore === null) return undefined
     const h = m.extraTimeHome ?? m.regularTimeHome ?? m.homeScore
     const a = m.extraTimeAway ?? m.regularTimeAway ?? m.awayScore
-    return `${h} – ${a}`
+    const isPenalties = m.regularTimeHome !== null && m.homeScore !== m.awayScore
+    const tabWinner: "home" | "away" | null = isPenalties
+      ? (m.homeScore > m.awayScore ? "home" : "away")
+      : null
+    return { score: `${h} – ${a}`, tabWinner }
   }
 
   return (
@@ -433,7 +438,7 @@ function BracketSection({
               homeDisplay={homeTeam ? `${homeTeam.flagEmoji ?? ""} ${homeTeam.name}` : homeLabel}
               awayDisplay={awayTeam ? `${awayTeam.flagEmoji ?? ""} ${awayTeam.name}` : awayLabel}
               isResolved={isResolved}
-              score={dbMatch ? realScore(dbMatch) : undefined}
+              scoreInfo={dbMatch ? realScore(dbMatch) : undefined}
             />
           )
         })}
@@ -461,7 +466,7 @@ function BracketSection({
                   homeDisplay={homeDisplay}
                   awayDisplay={awayDisplay}
                   isResolved={isResolved}
-                  score={realScore(m)}
+                  scoreInfo={realScore(m)}
                 />
               )
             })}
@@ -501,13 +506,13 @@ function BracketRow({
   homeDisplay,
   awayDisplay,
   isResolved,
-  score,
+  scoreInfo,
 }: {
   matchNumber: number
   homeDisplay: string
   awayDisplay: string
   isResolved: boolean
-  score?: string
+  scoreInfo?: { score: string; tabWinner: "home" | "away" | null }
 }) {
   return (
     <div className={cn(
@@ -516,14 +521,14 @@ function BracketRow({
     )}>
       <span className="text-[9px] text-[var(--foreground-subtle)] w-7 shrink-0 font-mono">M{matchNumber}</span>
       <span className={cn("flex-1 text-xs truncate", isResolved ? "text-[var(--foreground)] font-semibold" : "text-[var(--foreground-muted)] italic")}>
-        {homeDisplay}
+        {homeDisplay}{scoreInfo?.tabWinner === "home" ? " *" : ""}
       </span>
-      {score
-        ? <span className="text-xs font-black text-[var(--foreground)] shrink-0 tabular-nums">{score}</span>
+      {scoreInfo
+        ? <span className="text-xs font-black text-[var(--foreground)] shrink-0 tabular-nums">{scoreInfo.score}</span>
         : <span className="text-[10px] text-[var(--foreground-subtle)] shrink-0">vs</span>
       }
       <span className={cn("flex-1 text-xs truncate text-right", isResolved ? "text-[var(--foreground)] font-semibold" : "text-[var(--foreground-muted)] italic")}>
-        {awayDisplay}
+        {scoreInfo?.tabWinner === "away" ? "* " : ""}{awayDisplay}
       </span>
     </div>
   )

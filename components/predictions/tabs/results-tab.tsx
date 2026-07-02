@@ -348,6 +348,16 @@ function ResultMatchCard({ match, knockoutScoringRule }: { match: MatchWithPredi
   const refAway = isKnockout && knockoutScoringRule === "REGULAR_TIME" && match.regularTimeAway !== null
     ? match.regularTimeAway : match.awayScore
 
+  // Score à afficher (sans le +1 TAB encodé)
+  const displayHome = isKnockout && match.regularTimeHome !== null ? (match.extraTimeHome ?? match.regularTimeHome) : match.homeScore
+  const displayAway = isKnockout && match.regularTimeAway !== null ? (match.extraTimeAway ?? match.regularTimeAway) : match.awayScore
+
+  // Match décidé aux tirs au but
+  const isPenalties = isKnockout && match.regularTimeHome !== null && match.homeScore !== null && match.awayScore !== null && match.homeScore !== match.awayScore
+  const tabWinner: "home" | "away" | null = isPenalties
+    ? (match.homeScore! > match.awayScore! ? "home" : "away")
+    : null
+
   const realResult = hasResult
     ? refHome! > refAway! ? "home"
     : refHome! === refAway! ? "draw"
@@ -373,18 +383,22 @@ function ResultMatchCard({ match, knockoutScoringRule }: { match: MatchWithPredi
         <span className="text-xl leading-none">{match.homeTeam?.flagEmoji ?? "🏳️"}</span>
         <div className="flex-1 flex flex-col">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-[var(--foreground)] truncate">{match.homeTeam?.name}</span>
+            <span className="text-xs font-semibold text-[var(--foreground)] truncate">
+              {match.homeTeam?.name}{tabWinner === "home" ? " *" : ""}
+            </span>
             {hasResult && (
               <span className={cn("text-sm font-black tabular-nums ml-2", realResult === "home" ? "text-[var(--success)]" : "text-[var(--foreground-muted)]")}>
-                {match.homeScore}
+                {displayHome}
               </span>
             )}
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-[var(--foreground)] truncate">{match.awayTeam?.name}</span>
+            <span className="text-xs font-semibold text-[var(--foreground)] truncate">
+              {match.awayTeam?.name}{tabWinner === "away" ? " *" : ""}
+            </span>
             {hasResult && (
               <span className={cn("text-sm font-black tabular-nums ml-2", realResult === "away" ? "text-[var(--success)]" : "text-[var(--foreground-muted)]")}>
-                {match.awayScore}
+                {displayAway}
               </span>
             )}
           </div>
